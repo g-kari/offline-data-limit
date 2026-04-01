@@ -24,9 +24,7 @@ test.describe("ページ表示", () => {
 
   test("「全テスト実行」ボタンが存在する", async ({ page }) => {
     await page.goto("/");
-    await expect(
-      page.getByRole("button", { name: /全テスト実行/ })
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /全テスト実行/ })).toBeVisible();
   });
 });
 
@@ -41,15 +39,17 @@ test.describe("データ種別セレクター", () => {
 
     // 画像 (BMP) に切り替え
     await page.getByRole("button", { name: "画像 (BMP)" }).click();
-    await expect(
-      page.getByRole("button", { name: "画像 (BMP)" })
-    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "画像 (BMP)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
     // ランダムバイナリに戻す
     await page.getByRole("button", { name: "ランダムバイナリ" }).click();
-    await expect(
-      page.getByRole("button", { name: "ランダムバイナリ" })
-    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "ランダムバイナリ" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });
 

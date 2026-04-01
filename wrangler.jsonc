@@ -4,10 +4,10 @@
   "routes": [
     {
       "pattern": "offline-data-limit.0g0.xyz",
-      "custom_domain": true
-    }
+      "custom_domain": true,
+    },
   ],
   "assets": {
-    "directory": "dist"
-  }
+    "directory": "dist",
+  },
 }

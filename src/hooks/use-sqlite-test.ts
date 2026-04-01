@@ -12,7 +12,7 @@ interface UseStorageTestReturn {
   result: TestResult | null;
   progress: TestProgress | null;
   isRunning: boolean;
-  run: (dataType?: DataType) => Promise<void>;
+  run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
@@ -41,103 +41,101 @@ export function useSqliteTest(): UseStorageTestReturn {
     }
   }, []);
 
-  const run = useCallback(async (dataType: DataType = "random") => {
-    if (isRunning) return;
-    setIsRunning(true);
-    setResult(null);
-    setProgress(null);
+  const run = useCallback(
+    async (dataType: DataType = "random", _skipCleanup = false) => {
+      if (isRunning) return;
+      setIsRunning(true);
+      setResult(null);
+      setProgress(null);
 
-    try {
-      const worker = new Worker(
-        new URL("../workers/sqlite-worker.ts", import.meta.url),
-        { type: "module" }
-      );
-      workerRef.current = worker;
-      const maxBytes = await getSafeMaxBytes();
+      try {
+        const worker = new Worker(new URL("../workers/sqlite-worker.ts", import.meta.url), {
+          type: "module",
+        });
+        workerRef.current = worker;
+        const maxBytes = await getSafeMaxBytes();
 
-      await new Promise<void>((resolve, reject) => {
-        worker.onmessage = (e: MessageEvent<WorkerOutMessage>) => {
-          const msg = e.data;
+        await new Promise<void>((resolve, reject) => {
+          worker.onmessage = (e: MessageEvent<WorkerOutMessage>) => {
+            const msg = e.data;
 
-          switch (msg.type) {
-            case "progress":
-              setProgress({
-                apiId: "sqlite",
-                bytesWritten: msg.bytesWritten,
-                currentChunkSize: msg.currentChunkSize,
-                throughputMBps: msg.throughputMBps,
-                phase: "writing",
-              });
-              break;
+            switch (msg.type) {
+              case "progress":
+                setProgress({
+                  apiId: "sqlite",
+                  bytesWritten: msg.bytesWritten,
+                  currentChunkSize: msg.currentChunkSize,
+                  throughputMBps: msg.throughputMBps,
+                  phase: "writing",
+                });
+                break;
 
-            case "complete":
-              setResult({
-                apiId: "sqlite",
-                actualLimitBytes: msg.actualLimitBytes,
-                throughputMBps: msg.throughputMBps,
-                reportedQuotaBytes: null,
-                dataType,
-                durationMs: msg.durationMs,
-                supported: true,
-                verified: msg.verified,
-              });
-              setProgress((prev) =>
-                prev ? { ...prev, phase: "done" } : null
-              );
-              worker.terminate();
-              workerRef.current = null;
-              resolve();
-              break;
+              case "complete":
+                setResult({
+                  apiId: "sqlite",
+                  actualLimitBytes: msg.actualLimitBytes,
+                  throughputMBps: msg.throughputMBps,
+                  reportedQuotaBytes: null,
+                  dataType,
+                  durationMs: msg.durationMs,
+                  supported: true,
+                  verified: msg.verified,
+                });
+                setProgress((prev) => (prev ? { ...prev, phase: "done" } : null));
+                worker.terminate();
+                workerRef.current = null;
+                resolve();
+                break;
 
-            case "error":
-              setResult({
-                apiId: "sqlite",
-                actualLimitBytes: 0,
-                throughputMBps: 0,
-                reportedQuotaBytes: null,
-                dataType,
-                durationMs: 0,
-                supported: true,
-                error: msg.message,
-              });
-              setProgress((prev) =>
-                prev ? { ...prev, phase: "error" } : null
-              );
-              worker.terminate();
-              workerRef.current = null;
-              reject(new Error(msg.message));
-              break;
-          }
-        };
+              case "error":
+                setResult({
+                  apiId: "sqlite",
+                  actualLimitBytes: 0,
+                  throughputMBps: 0,
+                  reportedQuotaBytes: null,
+                  dataType,
+                  durationMs: 0,
+                  supported: true,
+                  error: msg.message,
+                });
+                setProgress((prev) => (prev ? { ...prev, phase: "error" } : null));
+                worker.terminate();
+                workerRef.current = null;
+                reject(new Error(msg.message));
+                break;
+            }
+          };
 
-        worker.onerror = (e) => {
-          worker.terminate();
-          workerRef.current = null;
-          reject(new Error(e.message));
-        };
+          worker.onerror = (e) => {
+            worker.terminate();
+            workerRef.current = null;
+            reject(new Error(e.message));
+          };
 
-        const startMsg: WorkerInMessage = { type: "start", dataType, maxBytes };
-        worker.postMessage(startMsg);
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "不明なエラー";
-      setResult((prev) =>
-        prev ?? {
-          apiId: "sqlite",
-          actualLimitBytes: 0,
-          throughputMBps: 0,
-          reportedQuotaBytes: null,
-          dataType,
-          durationMs: 0,
-          supported: false,
-          error: message,
-        }
-      );
-    } finally {
-      setIsRunning(false);
-    }
-  }, [isRunning]);
+          const startMsg: WorkerInMessage = { type: "start", dataType, maxBytes };
+          worker.postMessage(startMsg);
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "不明なエラー";
+        setResult(
+          (prev) =>
+            prev ?? {
+              apiId: "sqlite",
+              actualLimitBytes: 0,
+              throughputMBps: 0,
+              reportedQuotaBytes: null,
+              dataType,
+              durationMs: 0,
+              supported: false,
+              error: message,
+            },
+        );
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [isRunning],
+  );
 
   return { result, progress, isRunning, run, cleanup };
 }

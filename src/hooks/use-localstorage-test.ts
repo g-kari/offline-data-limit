@@ -11,22 +11,16 @@ interface UseStorageTestReturn {
   result: TestResult | null;
   progress: TestProgress | null;
   isRunning: boolean;
-  run: (dataType?: DataType) => Promise<void>;
+  run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
 function isQuotaError(err: unknown): boolean {
   if (err instanceof DOMException) {
-    return (
-      err.name === "QuotaExceededError" ||
-      err.name === "NS_ERROR_DOM_QUOTA_REACHED"
-    );
+    return err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED";
   }
   if (err instanceof Error) {
-    return (
-      err.name === "QuotaExceededError" ||
-      err.message.toLowerCase().includes("quota")
-    );
+    return err.name === "QuotaExceededError" || err.message.toLowerCase().includes("quota");
   }
   return false;
 }
@@ -50,83 +44,87 @@ export function useLocalStorageTest(): UseStorageTestReturn {
     }
   }, []);
 
-  const run = useCallback(async (dataType: DataType = "random") => {
-    if (isRunning) return;
-    setIsRunning(true);
-    setResult(null);
-    setProgress(null);
+  const run = useCallback(
+    async (dataType: DataType = "random", skipCleanup = false) => {
+      if (isRunning) return;
+      setIsRunning(true);
+      setResult(null);
+      setProgress(null);
 
-    try {
-      await cleanup();
+      try {
+        await cleanup();
 
-      const startTime = Date.now();
-      let totalBytes = 0;
-      let chunkSize = START_CHUNK_BYTES;
-      let keyIndex = 0;
+        const startTime = Date.now();
+        let totalBytes = 0;
+        let chunkSize = START_CHUNK_BYTES;
+        let keyIndex = 0;
 
-      while (chunkSize >= MIN_CHUNK_BYTES) {
-        try {
-          const data = generateStringChunkByType(chunkSize, dataType);
-          localStorage.setItem(`${KEY_PREFIX}${keyIndex}`, data);
-          totalBytes += chunkSize;
-          keyIndex++;
+        while (chunkSize >= MIN_CHUNK_BYTES) {
+          try {
+            const data = generateStringChunkByType(chunkSize, dataType);
+            localStorage.setItem(`${KEY_PREFIX}${keyIndex}`, data);
+            totalBytes += chunkSize;
+            keyIndex++;
 
-          const elapsed = (Date.now() - startTime) / 1000;
-          setProgress({
-            apiId: "localStorage",
-            bytesWritten: totalBytes,
-            currentChunkSize: chunkSize,
-            throughputMBps: elapsed > 0 ? totalBytes / 1024 / 1024 / elapsed : 0,
-            phase: "writing",
-          });
-        } catch (err) {
-          if (isQuotaError(err)) {
-            chunkSize = Math.floor(chunkSize / 2);
-          } else {
-            throw err;
+            const elapsed = (Date.now() - startTime) / 1000;
+            setProgress({
+              apiId: "localStorage",
+              bytesWritten: totalBytes,
+              currentChunkSize: chunkSize,
+              throughputMBps: elapsed > 0 ? totalBytes / 1024 / 1024 / elapsed : 0,
+              phase: "writing",
+            });
+          } catch (err) {
+            if (isQuotaError(err)) {
+              chunkSize = Math.floor(chunkSize / 2);
+            } else {
+              throw err;
+            }
           }
         }
+
+        const durationMs = Date.now() - startTime;
+        const throughputMBps = durationMs > 0 ? totalBytes / 1024 / 1024 / (durationMs / 1000) : 0;
+
+        // 検証: 最初のエントリが読み返せるか確認
+        const verified = localStorage.getItem(`${KEY_PREFIX}0`) !== null;
+
+        setResult({
+          apiId: "localStorage",
+          actualLimitBytes: totalBytes,
+          throughputMBps,
+          reportedQuotaBytes: null,
+          dataType,
+          durationMs,
+          supported: true,
+          verified,
+        });
+
+        if (!skipCleanup) {
+          setProgress((prev) => (prev ? { ...prev, phase: "cleanup" } : null));
+          await cleanup();
+        }
+        setProgress((prev) => (prev ? { ...prev, phase: "done" } : null));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "不明なエラー";
+        setResult({
+          apiId: "localStorage",
+          actualLimitBytes: 0,
+          throughputMBps: 0,
+          reportedQuotaBytes: null,
+          dataType,
+          durationMs: 0,
+          supported: typeof window !== "undefined" && "localStorage" in window,
+          error: message,
+        });
+        setProgress((prev) => (prev ? { ...prev, phase: "error" } : null));
+        await cleanup();
+      } finally {
+        setIsRunning(false);
       }
-
-      const durationMs = Date.now() - startTime;
-      const throughputMBps =
-        durationMs > 0 ? totalBytes / 1024 / 1024 / (durationMs / 1000) : 0;
-
-      // 検証: 最初のエントリが読み返せるか確認
-      const verified = localStorage.getItem(`${KEY_PREFIX}0`) !== null;
-
-      setResult({
-        apiId: "localStorage",
-        actualLimitBytes: totalBytes,
-        throughputMBps,
-        reportedQuotaBytes: null,
-        dataType,
-        durationMs,
-        supported: true,
-        verified,
-      });
-
-      setProgress((prev) => (prev ? { ...prev, phase: "cleanup" } : null));
-      await cleanup();
-      setProgress((prev) => (prev ? { ...prev, phase: "done" } : null));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "不明なエラー";
-      setResult({
-        apiId: "localStorage",
-        actualLimitBytes: 0,
-        throughputMBps: 0,
-        reportedQuotaBytes: null,
-        dataType,
-        durationMs: 0,
-        supported: typeof window !== "undefined" && "localStorage" in window,
-        error: message,
-      });
-      setProgress((prev) => (prev ? { ...prev, phase: "error" } : null));
-      await cleanup();
-    } finally {
-      setIsRunning(false);
-    }
-  }, [isRunning, cleanup]);
+    },
+    [isRunning, cleanup],
+  );
 
   return { result, progress, isRunning, run, cleanup };
 }

@@ -1,9 +1,7 @@
 import type { BrowserInfo, StorageEstimate } from "../types";
 
 export async function getBrowserInfo(): Promise<BrowserInfo> {
-  const persistentStorage = await navigator.storage
-    .persist()
-    .catch(() => false);
+  const persistentStorage = await navigator.storage.persist().catch(() => false);
 
   return {
     userAgent: navigator.userAgent,

@@ -8,15 +8,15 @@
 
 ## 計測対象
 
-| API | クォータ | 方式 |
-|-----|---------|------|
-| `localStorage` | 5MB（固定） | 同期 |
-| `sessionStorage` | 5MB（固定） | 同期 |
-| `IndexedDB` | 共有プール（GB単位） | 非同期 |
-| `Cache API` | 共有プール（GB単位） | 非同期 |
-| `OPFS` | 共有プール（GB単位） | Worker内同期 |
-| `SQLite/Wasm` | 共有プール（GB単位） | Worker内 |
-| `PGLite` | 共有プール（GB単位） | 非同期 |
+| API              | クォータ             | 方式         |
+| ---------------- | -------------------- | ------------ |
+| `localStorage`   | 5MB（固定）          | 同期         |
+| `sessionStorage` | 5MB（固定）          | 同期         |
+| `IndexedDB`      | 共有プール（GB単位） | 非同期       |
+| `Cache API`      | 共有プール（GB単位） | 非同期       |
+| `OPFS`           | 共有プール（GB単位） | Worker内同期 |
+| `SQLite/Wasm`    | 共有プール（GB単位） | Worker内     |
+| `PGLite`         | 共有プール（GB単位） | 非同期       |
 
 > **共有プール**: IndexedDB・Cache API・OPFSは同一のオリジンクォータを共有します。Chrome では利用可能ディスク容量の約80%、Firefox では最大2GB（永続ストレージ許可時10GB）が上限です。
 
