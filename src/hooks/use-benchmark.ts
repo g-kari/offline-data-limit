@@ -1,0 +1,222 @@
+import { useState, useCallback, useRef } from "react";
+import type {
+  StorageApiId,
+  TestResult,
+  BenchmarkSession,
+} from "../types";
+import { getBrowserInfo, getStorageEstimate } from "../utils/browser-info";
+import { useLocalStorageTest } from "./use-localstorage-test";
+import { useSessionStorageTest } from "./use-sessionstorage-test";
+import { useIndexedDBTest } from "./use-indexeddb-test";
+import { useCacheApiTest } from "./use-cache-api-test";
+import { useOpfsTest } from "./use-opfs-test";
+import { useSqliteTest } from "./use-sqlite-test";
+import { usePgliteTest } from "./use-pglite-test";
+
+const HISTORY_DB_NAME = "benchmark-history";
+const HISTORY_STORE_NAME = "sessions";
+
+interface UseBenchmarkReturn {
+  session: BenchmarkSession | null;
+  isRunning: boolean;
+  currentApiId: StorageApiId | null;
+  runAll: () => Promise<void>;
+  results: Map<StorageApiId, TestResult>;
+  history: BenchmarkSession[];
+}
+
+/** 履歴DB を開く */
+function openHistoryDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(HISTORY_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(HISTORY_STORE_NAME)) {
+        db.createObjectStore(HISTORY_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** 履歴を保存 */
+async function saveSession(session: BenchmarkSession): Promise<void> {
+  const db = await openHistoryDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HISTORY_STORE_NAME, "readwrite");
+    const store = tx.objectStore(HISTORY_STORE_NAME);
+    store.put(session);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
+/** 履歴を全件読み込み */
+async function loadHistory(): Promise<BenchmarkSession[]> {
+  const db = await openHistoryDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HISTORY_STORE_NAME, "readonly");
+    const store = tx.objectStore(HISTORY_STORE_NAME);
+    const req = store.getAll();
+    req.onsuccess = () => {
+      db.close();
+      // タイムスタンプ降順でソート
+      const sessions = req.result as BenchmarkSession[];
+      sessions.sort((a, b) => b.timestamp - a.timestamp);
+      resolve(sessions);
+    };
+    req.onerror = () => {
+      db.close();
+      reject(req.error);
+    };
+  });
+}
+
+/** 全テストを逐次実行するオーケストレーション hook */
+export function useBenchmark(): UseBenchmarkReturn {
+  const [session, setSession] = useState<BenchmarkSession | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [currentApiId, setCurrentApiId] = useState<StorageApiId | null>(
+    null
+  );
+  const [results, setResults] = useState<Map<StorageApiId, TestResult>>(
+    new Map()
+  );
+  const [history, setHistory] = useState<BenchmarkSession[]>([]);
+
+  // 各テストhook
+  const localStorage = useLocalStorageTest();
+  const sessionStorage = useSessionStorageTest();
+  const indexedDB = useIndexedDBTest();
+  const cacheApi = useCacheApiTest();
+  const opfs = useOpfsTest();
+  const sqlite = useSqliteTest();
+  const pglite = usePgliteTest();
+
+  // 初回マウント時に履歴を読み込む
+  const historyLoadedRef = useRef(false);
+  if (!historyLoadedRef.current) {
+    historyLoadedRef.current = true;
+    loadHistory()
+      .then(setHistory)
+      .catch(() => {});
+  }
+
+  const runAll = useCallback(async () => {
+    if (isRunning) return;
+    setIsRunning(true);
+    setSession(null);
+    setResults(new Map());
+
+    const allResults: TestResult[] = [];
+    const newResults = new Map<StorageApiId, TestResult>();
+
+    // テスト実行前のストレージ見積もり
+    const storageEstimateBefore = await getStorageEstimate();
+    const browserInfo = await getBrowserInfo();
+
+    // 逐次実行する全テスト（共有クォータプール干渉防止のため並列不可）
+    const tests: {
+      id: StorageApiId;
+      run: () => Promise<void>;
+      getResult: () => TestResult | null;
+    }[] = [
+      {
+        id: "localStorage",
+        run: localStorage.run,
+        getResult: () => localStorage.result,
+      },
+      {
+        id: "sessionStorage",
+        run: sessionStorage.run,
+        getResult: () => sessionStorage.result,
+      },
+      {
+        id: "indexedDB",
+        run: indexedDB.run,
+        getResult: () => indexedDB.result,
+      },
+      {
+        id: "cacheApi",
+        run: cacheApi.run,
+        getResult: () => cacheApi.result,
+      },
+      { id: "opfs", run: opfs.run, getResult: () => opfs.result },
+      {
+        id: "sqlite",
+        run: sqlite.run,
+        getResult: () => sqlite.result,
+      },
+      {
+        id: "pglite",
+        run: pglite.run,
+        getResult: () => pglite.result,
+      },
+    ];
+
+    for (const test of tests) {
+      setCurrentApiId(test.id);
+
+      try {
+        await test.run();
+      } catch {
+        // 個別テストのエラーは各hookがresultに記録する
+      }
+
+      // run完了後、resultを取得（stateから直接取得は非同期のため待機が必要）
+      // hookの結果はrun完了後にstate更新されるが、同期的に取得するために少し待つ
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const testResult = test.getResult();
+      if (testResult) {
+        allResults.push(testResult);
+        newResults.set(test.id, testResult);
+        setResults(new Map(newResults));
+      }
+    }
+
+    // テスト実行後のストレージ見積もり
+    const storageEstimateAfter = await getStorageEstimate();
+
+    const newSession: BenchmarkSession = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      browserInfo,
+      storageEstimateBefore,
+      storageEstimateAfter,
+      results: allResults,
+    };
+
+    setSession(newSession);
+    setCurrentApiId(null);
+
+    // 履歴に保存
+    try {
+      await saveSession(newSession);
+      const updatedHistory = await loadHistory();
+      setHistory(updatedHistory);
+    } catch {
+      // 履歴保存失敗は無視
+    }
+
+    setIsRunning(false);
+  }, [
+    isRunning,
+    localStorage,
+    sessionStorage,
+    indexedDB,
+    cacheApi,
+    opfs,
+    sqlite,
+    pglite,
+  ]);
+
+  return { session, isRunning, currentApiId, runAll, results, history };
+}

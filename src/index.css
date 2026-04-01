@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #fefbfb;
+  --color-text: #483030;
+  --color-muted: #a39696;
+  --color-border: #dfd7d7;
+  --color-surface: #f2f0f0;
+  --color-accent: #73862d;
+  --color-danger: #ff340b;
+  --font-sans: "Reddit Sans", "IBM Plex Sans JP", BlinkMacSystemFont, sans-serif;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+:root {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+* {
+  box-sizing: border-box;
+}
