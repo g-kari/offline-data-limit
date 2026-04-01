@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react";
 import type { TestResult, TestProgress, DataType } from "../types";
-import { measureStorageLimit } from "../utils/binary-search";
 import { generateStringChunkByType } from "../utils/chunk-generator";
 
 const KEY_PREFIX = "__bench_ss_";
-const START_CHUNK = 1024 * 1024; // 1MB（sessionStorage向け）
+// sessionStorage は通常 5MB 上限のため、512KB スタートで十分収束する
+const START_CHUNK_BYTES = 512 * 1024; // 512KB
+const MIN_CHUNK_BYTES = 1024; // 1KB
 
 interface UseStorageTestReturn {
   result: TestResult | null;
@@ -12,6 +13,22 @@ interface UseStorageTestReturn {
   isRunning: boolean;
   run: (dataType?: DataType) => Promise<void>;
   cleanup: () => Promise<void>;
+}
+
+function isQuotaError(err: unknown): boolean {
+  if (err instanceof DOMException) {
+    return (
+      err.name === "QuotaExceededError" ||
+      err.name === "NS_ERROR_DOM_QUOTA_REACHED"
+    );
+  }
+  if (err instanceof Error) {
+    return (
+      err.name === "QuotaExceededError" ||
+      err.message.toLowerCase().includes("quota")
+    );
+  }
+  return false;
 }
 
 /** sessionStorage の容量上限を計測する hook */
@@ -42,45 +59,54 @@ export function useSessionStorageTest(): UseStorageTestReturn {
     try {
       await cleanup();
 
-      const searchResult = await measureStorageLimit({
-        onWrite: async (chunkSize, keyIndex) => {
-          const actualSize = Math.min(chunkSize, START_CHUNK);
-          const data = generateStringChunkByType(actualSize, dataType);
+      const startTime = Date.now();
+      let totalBytes = 0;
+      let chunkSize = START_CHUNK_BYTES;
+      let keyIndex = 0;
+
+      while (chunkSize >= MIN_CHUNK_BYTES) {
+        try {
+          const data = generateStringChunkByType(chunkSize, dataType);
           sessionStorage.setItem(`${KEY_PREFIX}${keyIndex}`, data);
-        },
-        onProgress: (bytesWritten, currentChunkSize, startTime) => {
+          totalBytes += chunkSize;
+          keyIndex++;
+
           const elapsed = (Date.now() - startTime) / 1000;
           setProgress({
             apiId: "sessionStorage",
-            bytesWritten,
-            currentChunkSize,
-            throughputMBps:
-              elapsed > 0 ? bytesWritten / 1024 / 1024 / elapsed : 0,
+            bytesWritten: totalBytes,
+            currentChunkSize: chunkSize,
+            throughputMBps: elapsed > 0 ? totalBytes / 1024 / 1024 / elapsed : 0,
             phase: "writing",
           });
-        },
-      });
+        } catch (err) {
+          if (isQuotaError(err)) {
+            chunkSize = Math.floor(chunkSize / 2);
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      const durationMs = Date.now() - startTime;
+      const throughputMBps =
+        durationMs > 0 ? totalBytes / 1024 / 1024 / (durationMs / 1000) : 0;
 
       setResult({
         apiId: "sessionStorage",
-        actualLimitBytes: searchResult.actualLimitBytes,
-        throughputMBps: searchResult.throughputMBps,
+        actualLimitBytes: totalBytes,
+        throughputMBps,
         reportedQuotaBytes: null,
         dataType,
-        durationMs: searchResult.durationMs,
+        durationMs,
         supported: true,
       });
 
-      setProgress((prev) =>
-        prev ? { ...prev, phase: "cleanup" } : null
-      );
+      setProgress((prev) => (prev ? { ...prev, phase: "cleanup" } : null));
       await cleanup();
-      setProgress((prev) =>
-        prev ? { ...prev, phase: "done" } : null
-      );
+      setProgress((prev) => (prev ? { ...prev, phase: "done" } : null));
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "不明なエラー";
+      const message = err instanceof Error ? err.message : "不明なエラー";
       setResult({
         apiId: "sessionStorage",
         actualLimitBytes: 0,
@@ -92,9 +118,7 @@ export function useSessionStorageTest(): UseStorageTestReturn {
           typeof window !== "undefined" && "sessionStorage" in window,
         error: message,
       });
-      setProgress((prev) =>
-        prev ? { ...prev, phase: "error" } : null
-      );
+      setProgress((prev) => (prev ? { ...prev, phase: "error" } : null));
       await cleanup();
     } finally {
       setIsRunning(false);
