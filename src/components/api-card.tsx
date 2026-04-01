@@ -1,8 +1,8 @@
-import { useState } from "react";
 import type { StorageApiId, TestResult, TestProgress } from "../types";
 import { formatBytes, formatThroughput, formatDuration } from "../utils/format";
+import { useDisclosure } from "../hooks/use-disclosure";
 
-interface Props {
+export interface ApiCardProps {
   apiId: StorageApiId;
   name: string;
   description: string;
@@ -29,8 +29,8 @@ export function ApiCard({
   progress,
   isRunning,
   onRun,
-}: Props) {
-  const [isExpanded, setIsExpanded] = useState(false);
+}: ApiCardProps) {
+  const { isOpen: isExpanded, toggle } = useDisclosure();
 
   /** プログレスバーの幅（書き込み済み / 現在のチャンクサイズを目安） */
   const progressPercent =
@@ -43,15 +43,13 @@ export function ApiCard({
 
   return (
     <div className="rounded border border-border bg-bg p-4 flex flex-col gap-3">
-      {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold">{name}</h3>
           <p className="text-sm text-muted">{description}</p>
-          {/* 詳細トグル */}
           <button
             type="button"
-            onClick={() => setIsExpanded((v) => !v)}
+            onClick={toggle}
             className="text-xs text-accent hover:underline mt-1"
           >
             {isExpanded ? "閉じる ▲" : "詳細を見る ▼"}
@@ -66,27 +64,19 @@ export function ApiCard({
         </span>
       </div>
 
-      {/* アコーディオン: 詳細情報 */}
       {isExpanded && (
         <div className="border-t border-border/50 pt-3 space-y-3 text-sm">
-          {/* 詳細説明 */}
           <p className="text-muted leading-relaxed">{details}</p>
-
-          {/* サンプルコード */}
           <div>
             <p className="text-xs font-medium mb-1">サンプルコード</p>
             <pre className="bg-surface rounded p-3 overflow-x-auto text-xs leading-relaxed whitespace-pre">
               <code>{sampleCode}</code>
             </pre>
           </div>
-
-          {/* 端末差分 */}
           <div>
             <p className="text-xs font-medium mb-1">端末・ブラウザ差分</p>
             <p className="text-muted leading-relaxed text-xs">{platformNotes}</p>
           </div>
-
-          {/* 出典リンク */}
           <a
             href={referenceUrl}
             target="_blank"
@@ -98,7 +88,6 @@ export function ApiCard({
         </div>
       )}
 
-      {/* 実行中プログレス */}
       {isRunning && progress && (
         <div className="space-y-1">
           <div className="h-2 w-full rounded-full bg-surface overflow-hidden">
@@ -114,7 +103,6 @@ export function ApiCard({
         </div>
       )}
 
-      {/* 完了結果 */}
       {result && !isRunning && (
         <div className="grid grid-cols-3 gap-2 text-sm">
           <div>
@@ -131,7 +119,7 @@ export function ApiCard({
           </div>
         </div>
       )}
-      {/* 検証結果バッジ */}
+
       {result && !isRunning && result.verified !== undefined && (
         <p
           className={`rounded px-2 py-1 text-xs ${
@@ -143,12 +131,11 @@ export function ApiCard({
             : "検証NG: 書き込み後にデータを読み返せませんでした"}
         </p>
       )}
-      {/* エラーは実行中・完了後問わず常時表示 */}
+
       {result?.error && (
         <p className="rounded bg-danger/10 px-2 py-1 text-xs text-danger">{result.error}</p>
       )}
 
-      {/* 実行ボタン */}
       <button
         type="button"
         onClick={onRun}

@@ -1,5 +1,5 @@
-import type { StorageApiId, TestResult, TestProgress, DataType } from "../types";
-import { ApiCard } from "./api-card";
+import type { DataType } from "../types";
+import { ApiCard, type ApiCardProps } from "./api-card";
 
 /** データ種別の選択肢 */
 const DATA_TYPES: { id: DataType; label: string; description: string }[] = [
@@ -8,21 +8,6 @@ const DATA_TYPES: { id: DataType; label: string; description: string }[] = [
   { id: "text", label: "テキスト", description: "日本語テキストを繰り返し" },
   { id: "json", label: "JSON", description: "構造化JSONオブジェクト配列" },
 ];
-
-interface ApiCardProps {
-  apiId: StorageApiId;
-  name: string;
-  description: string;
-  details: string;
-  sampleCode: string;
-  referenceUrl: string;
-  platformNotes: string;
-  supported: boolean;
-  result: TestResult | null;
-  progress: TestProgress | null;
-  isRunning: boolean;
-  onRun: () => Promise<void>;
-}
 
 interface Props {
   apiCards: ApiCardProps[];

@@ -243,8 +243,8 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
     [isRunning, dataType, localStorage, sessionStorage, indexedDB, cacheApi, opfs, sqlite, pglite],
   );
 
-  // 現在実行中APIのプログレスをrefから取得
-  const progressRefMap: Record<StorageApiId, MutableRefObject<TestProgress | null>> = {
+  // 毎レンダー再生成しないようuseRefで一度だけ構築（refは参照が安定しているため依存配列不要）
+  const progressRefMap = useRef<Record<StorageApiId, MutableRefObject<TestProgress | null>>>({
     localStorage: localStorageProgressRef,
     sessionStorage: sessionStorageProgressRef,
     indexedDB: indexedDBProgressRef,
@@ -252,7 +252,8 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
     opfs: opfsProgressRef,
     sqlite: sqliteProgressRef,
     pglite: pgliteProgressRef,
-  };
+  }).current;
+
   const currentProgress = currentApiId ? progressRefMap[currentApiId].current : null;
 
   return { session, isRunning, currentApiId, currentProgress, runAll, results, history };

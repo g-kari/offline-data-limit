@@ -1,15 +1,8 @@
 import type { PersistenceResult } from "../types";
 import { formatBytes } from "../utils/format";
+import { API_INFO } from "../data/api-info";
 
-/** API ID → 表示名 */
-const API_NAMES: Record<string, string> = {
-  localStorage: "localStorage",
-  indexedDB: "IndexedDB",
-  cacheApi: "Cache API",
-  opfs: "OPFS",
-  sqlite: "SQLite/Wasm",
-  pglite: "PGLite",
-};
+const API_NAMES = Object.fromEntries(API_INFO.map((a) => [a.id, a.name]));
 
 interface Props {
   retainData: boolean;

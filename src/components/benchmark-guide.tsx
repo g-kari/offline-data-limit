@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useDisclosure } from "../hooks/use-disclosure";
 
 /** 端末・ブラウザ別の差分情報 */
 const PLATFORM_DIFFERENCES = [
@@ -45,14 +45,13 @@ const RESULT_FIELDS = [
 ];
 
 export function BenchmarkGuide() {
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, toggle } = useDisclosure();
 
   return (
     <section className="rounded border border-border bg-bg mb-6 overflow-hidden">
-      {/* ヘッダー（常時表示） */}
       <button
         type="button"
-        onClick={() => setIsOpen((v) => !v)}
+        onClick={toggle}
         className="flex items-center justify-between w-full px-5 py-4 text-left hover:bg-surface transition-colors"
       >
         <h2 className="text-base font-semibold">このベンチマークについて</h2>
