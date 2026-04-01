@@ -48,19 +48,20 @@ export function generateBmpChunk(sizeBytes: number): Uint8Array {
   const view = new DataView(buf.buffer);
 
   // BMPファイルヘッダー (14B)
-  buf[0] = 0x42; buf[1] = 0x4d; // "BM"
-  view.setUint32(2, actualSize, true);          // ファイルサイズ
-  view.setUint32(6, 0, true);                    // 予約済み
-  view.setUint32(10, HEADER_SIZE, true);         // ピクセルデータオフセット
+  buf[0] = 0x42;
+  buf[1] = 0x4d; // "BM"
+  view.setUint32(2, actualSize, true); // ファイルサイズ
+  view.setUint32(6, 0, true); // 予約済み
+  view.setUint32(10, HEADER_SIZE, true); // ピクセルデータオフセット
 
   // DIBヘッダー (40B)
-  view.setUint32(14, 40, true);                  // ヘッダーサイズ
-  view.setInt32(18, width, true);                // 幅
-  view.setInt32(22, height, true);               // 高さ
-  view.setUint16(26, 1, true);                   // カラープレーン数
-  view.setUint16(28, 24, true);                  // bpp
-  view.setUint32(30, 0, true);                   // 圧縮なし
-  view.setUint32(34, actualPixelSize, true);     // ピクセルデータサイズ
+  view.setUint32(14, 40, true); // ヘッダーサイズ
+  view.setInt32(18, width, true); // 幅
+  view.setInt32(22, height, true); // 高さ
+  view.setUint16(26, 1, true); // カラープレーン数
+  view.setUint16(28, 24, true); // bpp
+  view.setUint32(30, 0, true); // 圧縮なし
+  view.setUint32(34, actualPixelSize, true); // ピクセルデータサイズ
 
   // ピクセルデータをランダムで埋める
   const pixelData = buf.subarray(HEADER_SIZE, HEADER_SIZE + actualPixelSize);
@@ -118,10 +119,14 @@ export function generateJsonChunk(sizeBytes: number): Uint8Array {
 /** データ種別に応じたUint8Arrayチャンクを生成する（統合ディスパッチ） */
 export function generateChunkByType(sizeBytes: number, dataType: DataType): Uint8Array {
   switch (dataType) {
-    case "random": return generateChunk(sizeBytes);
-    case "bmp":    return generateBmpChunk(sizeBytes);
-    case "text":   return generateTextChunk(sizeBytes);
-    case "json":   return generateJsonChunk(sizeBytes);
+    case "random":
+      return generateChunk(sizeBytes);
+    case "bmp":
+      return generateBmpChunk(sizeBytes);
+    case "text":
+      return generateTextChunk(sizeBytes);
+    case "json":
+      return generateJsonChunk(sizeBytes);
   }
 }
 

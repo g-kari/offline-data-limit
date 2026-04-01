@@ -19,16 +19,10 @@ const DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
  */
 function isQuotaError(err: unknown): boolean {
   if (err instanceof DOMException) {
-    return (
-      err.name === "QuotaExceededError" ||
-      err.name === "NS_ERROR_DOM_QUOTA_REACHED"
-    );
+    return err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED";
   }
   if (err instanceof Error) {
-    return (
-      err.name === "QuotaExceededError" ||
-      err.message.toLowerCase().includes("quota")
-    );
+    return err.name === "QuotaExceededError" || err.message.toLowerCase().includes("quota");
   }
   return false;
 }
@@ -57,10 +51,7 @@ async function runBenchmark(dataType: DataType, maxBytes: number) {
         totalBytes += chunkSize;
 
         const elapsed = Date.now() - startTime;
-        const throughputMBps =
-          elapsed > 0
-            ? totalBytes / 1024 / 1024 / (elapsed / 1000)
-            : 0;
+        const throughputMBps = elapsed > 0 ? totalBytes / 1024 / 1024 / (elapsed / 1000) : 0;
 
         const progress: WorkerProgressMessage = {
           type: "progress",
@@ -83,10 +74,7 @@ async function runBenchmark(dataType: DataType, maxBytes: number) {
     const verified = fileSize >= totalBytes;
 
     const durationMs = Date.now() - startTime;
-    const throughputMBps =
-      durationMs > 0
-        ? totalBytes / 1024 / 1024 / (durationMs / 1000)
-        : 0;
+    const throughputMBps = durationMs > 0 ? totalBytes / 1024 / 1024 / (durationMs / 1000) : 0;
 
     const complete: WorkerCompleteMessage = {
       type: "complete",

@@ -1,9 +1,4 @@
-import type {
-  StorageApiId,
-  TestResult,
-  TestProgress,
-  DataType,
-} from "../types";
+import type { StorageApiId, TestResult, TestProgress, DataType } from "../types";
 import { ApiCard } from "./api-card";
 
 /** データ種別の選択肢 */
@@ -18,6 +13,10 @@ interface ApiCardProps {
   apiId: StorageApiId;
   name: string;
   description: string;
+  details: string;
+  sampleCode: string;
+  referenceUrl: string;
+  platformNotes: string;
   supported: boolean;
   result: TestResult | null;
   progress: TestProgress | null;
@@ -33,13 +32,7 @@ interface Props {
   onDataTypeChange: (dt: DataType) => void;
 }
 
-export function TestRunner({
-  apiCards,
-  isRunning,
-  onRunAll,
-  dataType,
-  onDataTypeChange,
-}: Props) {
+export function TestRunner({ apiCards, isRunning, onRunAll, dataType, onDataTypeChange }: Props) {
   return (
     <section className="mb-6">
       <div className="flex items-center justify-between mb-4">
@@ -66,9 +59,7 @@ export function TestRunner({
               aria-pressed={dataType === dt.id}
               onClick={() => onDataTypeChange(dt.id)}
               className={`flex-1 px-3 py-2 text-sm transition-colors ${
-                dataType === dt.id
-                  ? "bg-[#73862d] text-white"
-                  : "bg-surface text-current"
+                dataType === dt.id ? "bg-[#73862d] text-white" : "bg-surface text-current"
               } ${isRunning ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"}`}
             >
               <span className="block font-medium">{dt.label}</span>

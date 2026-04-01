@@ -16,8 +16,7 @@ export default defineConfig({
       manifest: {
         name: "オフラインデータ限度ベンチマーク",
         short_name: "StorageBench",
-        description:
-          "ブラウザの各ストレージAPIの実際の上限を計測するPWAツール",
+        description: "ブラウザの各ストレージAPIの実際の上限を計測するPWAツール",
         theme_color: "#483030",
         background_color: "#fefbfb",
         display: "standalone",

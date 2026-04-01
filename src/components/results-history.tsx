@@ -30,8 +30,7 @@ export function ResultsHistory({ history }: Props) {
       <div className="space-y-2">
         {history.map((session) => {
           const maxResult = session.results.reduce(
-            (max, r) =>
-              r.actualLimitBytes > max.actualLimitBytes ? r : max,
+            (max, r) => (r.actualLimitBytes > max.actualLimitBytes ? r : max),
             session.results[0],
           );
           const date = new Date(session.timestamp);
@@ -56,9 +55,7 @@ export function ResultsHistory({ history }: Props) {
                   {DATA_TYPE_LABELS[session.dataType ?? "random"] ?? "ランダム"}
                 </span>
               </div>
-              <span className="font-medium">
-                最大 {formatBytes(maxResult.actualLimitBytes)}
-              </span>
+              <span className="font-medium">最大 {formatBytes(maxResult.actualLimitBytes)}</span>
             </div>
           );
         })}

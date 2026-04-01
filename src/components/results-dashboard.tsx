@@ -7,17 +7,10 @@ interface Props {
   estimateAfter: StorageEstimate | null;
 }
 
-export function ResultsDashboard({
-  results,
-  estimateBefore,
-  estimateAfter,
-}: Props) {
+export function ResultsDashboard({ results, estimateBefore, estimateAfter }: Props) {
   if (results.size === 0) return null;
 
-  const totalActual = Array.from(results.values()).reduce(
-    (sum, r) => sum + r.actualLimitBytes,
-    0,
-  );
+  const totalActual = Array.from(results.values()).reduce((sum, r) => sum + r.actualLimitBytes, 0);
 
   return (
     <section className="mb-6">
@@ -28,9 +21,7 @@ export function ResultsDashboard({
         {estimateBefore && (
           <div>
             <p className="text-muted">報告クォータ</p>
-            <p className="text-lg font-medium">
-              {formatBytes(estimateBefore.quota)}
-            </p>
+            <p className="text-lg font-medium">{formatBytes(estimateBefore.quota)}</p>
           </div>
         )}
         <div>
@@ -40,9 +31,7 @@ export function ResultsDashboard({
         {estimateAfter && (
           <div>
             <p className="text-muted">計測後使用量</p>
-            <p className="text-lg font-medium">
-              {formatBytes(estimateAfter.usage)}
-            </p>
+            <p className="text-lg font-medium">{formatBytes(estimateAfter.usage)}</p>
           </div>
         )}
       </div>
@@ -62,15 +51,9 @@ export function ResultsDashboard({
             {Array.from(results.values()).map((r) => (
               <tr key={r.apiId} className="border-b border-border/50">
                 <td className="py-2 pr-4 font-medium">{r.apiId}</td>
-                <td className="py-2 pr-4">
-                  {formatBytes(r.actualLimitBytes)}
-                </td>
-                <td className="py-2 pr-4">
-                  {formatThroughput(r.throughputMBps)}
-                </td>
-                <td className="py-2">
-                  {r.reportedQuotaBytes !== null ? "はい" : "いいえ"}
-                </td>
+                <td className="py-2 pr-4">{formatBytes(r.actualLimitBytes)}</td>
+                <td className="py-2 pr-4">{formatThroughput(r.throughputMBps)}</td>
+                <td className="py-2">{r.reportedQuotaBytes !== null ? "はい" : "いいえ"}</td>
               </tr>
             ))}
           </tbody>

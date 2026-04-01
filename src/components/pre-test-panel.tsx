@@ -22,9 +22,7 @@ export function PreTestPanel({ estimate, isPersistent }: Props) {
           </div>
           <div>
             <p className="text-muted">使用率</p>
-            <p className="text-lg font-medium">
-              {formatPercent(estimate.usage, estimate.quota)}
-            </p>
+            <p className="text-lg font-medium">{formatPercent(estimate.usage, estimate.quota)}</p>
           </div>
           <div>
             <p className="text-muted">永続ストレージ</p>

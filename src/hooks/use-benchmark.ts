@@ -1,11 +1,5 @@
 import { useState, useCallback, useRef, type MutableRefObject } from "react";
-import type {
-  StorageApiId,
-  TestResult,
-  TestProgress,
-  BenchmarkSession,
-  DataType,
-} from "../types";
+import type { StorageApiId, TestResult, TestProgress, BenchmarkSession, DataType } from "../types";
 import { getBrowserInfo, getStorageEstimate } from "../utils/browser-info";
 import { requestPersistence } from "../utils/storage-cap";
 import { useLocalStorageTest } from "./use-localstorage-test";
@@ -24,7 +18,7 @@ interface UseBenchmarkReturn {
   isRunning: boolean;
   currentApiId: StorageApiId | null;
   currentProgress: TestProgress | null;
-  runAll: () => Promise<void>;
+  runAll: (retainData?: boolean) => Promise<void>;
   results: Map<StorageApiId, TestResult>;
   history: BenchmarkSession[];
 }
@@ -87,12 +81,8 @@ async function loadHistory(): Promise<BenchmarkSession[]> {
 export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn {
   const [session, setSession] = useState<BenchmarkSession | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [currentApiId, setCurrentApiId] = useState<StorageApiId | null>(
-    null
-  );
-  const [results, setResults] = useState<Map<StorageApiId, TestResult>>(
-    new Map()
-  );
+  const [currentApiId, setCurrentApiId] = useState<StorageApiId | null>(null);
+  const [results, setResults] = useState<Map<StorageApiId, TestResult>>(new Map());
   const [history, setHistory] = useState<BenchmarkSession[]>([]);
 
   // 各テストhook
@@ -144,119 +134,114 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
       .catch(() => {});
   }
 
-  const runAll = useCallback(async () => {
-    if (isRunning) return;
-    setIsRunning(true);
-    setSession(null);
-    setResults(new Map());
+  const runAll = useCallback(
+    async (retainData = false) => {
+      if (isRunning) return;
+      setIsRunning(true);
+      setSession(null);
+      setResults(new Map());
 
-    const allResults: TestResult[] = [];
-    const newResults = new Map<StorageApiId, TestResult>();
+      const allResults: TestResult[] = [];
+      const newResults = new Map<StorageApiId, TestResult>();
 
-    // Persistent Storage を要求（自動消去防止）
-    await requestPersistence();
+      // Persistent Storage を要求（自動消去防止）
+      await requestPersistence();
 
-    // テスト実行前のストレージ見積もり
-    const storageEstimateBefore = await getStorageEstimate();
-    const browserInfo = await getBrowserInfo();
+      // テスト実行前のストレージ見積もり
+      const storageEstimateBefore = await getStorageEstimate();
+      const browserInfo = await getBrowserInfo();
 
-    // 逐次実行する全テスト（共有クォータプール干渉防止のため並列不可）
-    const tests: {
-      id: StorageApiId;
-      run: (dataType?: DataType) => Promise<void>;
-      getResult: () => TestResult | null;
-    }[] = [
-      {
-        id: "localStorage",
-        run: localStorage.run,
-        getResult: () => localStorageResultRef.current,
-      },
-      {
-        id: "sessionStorage",
-        run: sessionStorage.run,
-        getResult: () => sessionStorageResultRef.current,
-      },
-      {
-        id: "indexedDB",
-        run: indexedDB.run,
-        getResult: () => indexedDBResultRef.current,
-      },
-      {
-        id: "cacheApi",
-        run: cacheApi.run,
-        getResult: () => cacheApiResultRef.current,
-      },
-      { id: "opfs", run: opfs.run, getResult: () => opfsResultRef.current },
-      {
-        id: "sqlite",
-        run: sqlite.run,
-        getResult: () => sqliteResultRef.current,
-      },
-      {
-        id: "pglite",
-        run: pglite.run,
-        getResult: () => pgliteResultRef.current,
-      },
-    ];
+      // 逐次実行する全テスト（共有クォータプール干渉防止のため並列不可）
+      const tests: {
+        id: StorageApiId;
+        run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
+        getResult: () => TestResult | null;
+      }[] = [
+        {
+          id: "localStorage",
+          run: localStorage.run,
+          getResult: () => localStorageResultRef.current,
+        },
+        {
+          id: "sessionStorage",
+          run: sessionStorage.run,
+          getResult: () => sessionStorageResultRef.current,
+        },
+        {
+          id: "indexedDB",
+          run: indexedDB.run,
+          getResult: () => indexedDBResultRef.current,
+        },
+        {
+          id: "cacheApi",
+          run: cacheApi.run,
+          getResult: () => cacheApiResultRef.current,
+        },
+        { id: "opfs", run: opfs.run, getResult: () => opfsResultRef.current },
+        {
+          id: "sqlite",
+          run: sqlite.run,
+          getResult: () => sqliteResultRef.current,
+        },
+        {
+          id: "pglite",
+          run: pglite.run,
+          getResult: () => pgliteResultRef.current,
+        },
+      ];
 
-    for (const test of tests) {
-      setCurrentApiId(test.id);
+      for (const test of tests) {
+        setCurrentApiId(test.id);
 
+        try {
+          // sessionStorageはタブ閉じで消えるため常にクリーンアップ
+          const skip = test.id === "sessionStorage" ? false : retainData;
+          await test.run(dataType, skip);
+        } catch {
+          // 個別テストのエラーは各hookがresultに記録する
+        }
+
+        // run()がawaitで完了した時点でhook内のsetResult/setIsRunningは呼ばれているが、
+        // Reactのstateがrefへreflectされるまで1フレーム待つ
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const testResult = test.getResult();
+        if (testResult) {
+          allResults.push(testResult);
+          newResults.set(test.id, testResult);
+          setResults(new Map(newResults));
+        }
+      }
+
+      // テスト実行後のストレージ見積もり
+      const storageEstimateAfter = await getStorageEstimate();
+
+      const newSession: BenchmarkSession = {
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        browserInfo,
+        storageEstimateBefore,
+        storageEstimateAfter,
+        dataType,
+        results: allResults,
+      };
+
+      setSession(newSession);
+      setCurrentApiId(null);
+
+      // 履歴に保存
       try {
-        await test.run(dataType);
+        await saveSession(newSession);
+        const updatedHistory = await loadHistory();
+        setHistory(updatedHistory);
       } catch {
-        // 個別テストのエラーは各hookがresultに記録する
+        // 履歴保存失敗は無視
       }
 
-      // run()がawaitで完了した時点でhook内のsetResult/setIsRunningは呼ばれているが、
-      // Reactのstateがrefへreflectされるまで1フレーム待つ
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      const testResult = test.getResult();
-      if (testResult) {
-        allResults.push(testResult);
-        newResults.set(test.id, testResult);
-        setResults(new Map(newResults));
-      }
-    }
-
-    // テスト実行後のストレージ見積もり
-    const storageEstimateAfter = await getStorageEstimate();
-
-    const newSession: BenchmarkSession = {
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      browserInfo,
-      storageEstimateBefore,
-      storageEstimateAfter,
-      dataType,
-      results: allResults,
-    };
-
-    setSession(newSession);
-    setCurrentApiId(null);
-
-    // 履歴に保存
-    try {
-      await saveSession(newSession);
-      const updatedHistory = await loadHistory();
-      setHistory(updatedHistory);
-    } catch {
-      // 履歴保存失敗は無視
-    }
-
-    setIsRunning(false);
-  }, [
-    isRunning,
-    dataType,
-    localStorage,
-    sessionStorage,
-    indexedDB,
-    cacheApi,
-    opfs,
-    sqlite,
-    pglite,
-  ]);
+      setIsRunning(false);
+    },
+    [isRunning, dataType, localStorage, sessionStorage, indexedDB, cacheApi, opfs, sqlite, pglite],
+  );
 
   // 現在実行中APIのプログレスをrefから取得
   const progressRefMap: Record<StorageApiId, MutableRefObject<TestProgress | null>> = {

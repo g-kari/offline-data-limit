@@ -7,6 +7,7 @@
 **オフラインデータ限度ベンチマーク** — ブラウザの各ストレージAPIが実際にどれだけのデータを保存できるかを計測するPWAツール。
 
 ### 計測対象のストレージAPI
+
 - `localStorage` / `sessionStorage` — 同期、5MB上限（固定）
 - `IndexedDB` — 非同期、共有クォータプール（GB単位）
 - `Cache API` — 非同期、共有クォータプール
@@ -16,15 +17,15 @@
 
 ## 技術スタック
 
-| 技術 | 用途 |
-|------|------|
-| Vite 8 + vite-plus | ビルド・リント・フォーマット |
-| React 19 + TypeScript 5.8 | UI |
+| 技術                               | 用途                          |
+| ---------------------------------- | ----------------------------- |
+| Vite 8 + vite-plus                 | ビルド・リント・フォーマット  |
+| React 19 + TypeScript 5.8          | UI                            |
 | Tailwind CSS 4 + @tailwindcss/vite | スタイリング（katasu.me配色） |
-| vite-plugin-pwa | PWA/Service Worker生成 |
-| Cloudflare Workers（静的アセット） | デプロイ |
-| @rhashimoto/wa-sqlite | SQLite in browser |
-| @electric-sql/pglite | PostgreSQL in browser |
+| vite-plugin-pwa                    | PWA/Service Worker生成        |
+| Cloudflare Workers（静的アセット） | デプロイ                      |
+| @rhashimoto/wa-sqlite              | SQLite in browser             |
+| @electric-sql/pglite               | PostgreSQL in browser         |
 
 ## 開発コマンド
 
@@ -42,6 +43,7 @@ vp check           # リント + フォーマットチェック
 ## デプロイ
 
 Cloudflare WorkersにGitHub連携でデプロイ（GitHub Actions不使用）:
+
 - ビルドコマンド: `npm run build`
 - 出力ディレクトリ: `dist`
 - `wrangler.jsonc`の`assets.directory: "dist"`で静的アセット配信
@@ -51,6 +53,7 @@ Cloudflare WorkersにGitHub連携でデプロイ（GitHub Actions不使用）:
 ### COOP/COEPヘッダーが必須な理由
 
 `SharedArrayBuffer`を有効にするために必要。`wa-sqlite`のOPFS VFSが`SharedArrayBuffer`を使用するため。
+
 - 開発時: `vite.config.ts`の`server.headers`で設定
 - 本番: `public/_headers`でCloudflare Workers静的アセットに設定
 
@@ -81,10 +84,13 @@ src/
 ## 作業フロー（必須）
 
 ### エージェントチーム構築
+
 実装タスクを開始するたびに `TeamCreate` でエージェントチームを構築し、独立したタスクを並列化すること。
 
 ### Serena MCP ツールの利用
+
 コードの検索・読み込み・編集には Serena の MCP ツールを積極活用すること:
+
 - `serena__find_symbol` / `serena__get_symbols_overview` — シンボル検索・概観
 - `serena__search_for_pattern` — パターン検索
 - `serena__read_file` — ファイル読み込み

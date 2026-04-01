@@ -18,12 +18,21 @@ export type StorageApiId =
 export interface StorageApiInfo {
   id: StorageApiId;
   name: string;
+  /** 短い説明（カード常時表示） */
   description: string;
+  /** 詳細説明（アコーディオン展開時） */
+  details: string;
+  /** サンプルコード */
+  sampleCode: string;
+  /** 出典URL（MDN等） */
+  referenceUrl: string;
+  /** PC/Android/iPhoneでの差分説明 */
+  platformNotes: string;
   sharedQuota: boolean;
   requiresWorker: boolean;
 }
 
-export type TestPhase = "idle" | "writing" | "cleanup" | "done" | "error";
+export type TestPhase = "idle" | "writing" | "verifying" | "cleanup" | "done" | "error";
 
 export interface TestProgress {
   apiId: StorageApiId;
@@ -75,13 +84,21 @@ export interface BenchmarkSession {
   results: TestResult[];
 }
 
+/** 永続性検証の結果 */
+export interface PersistenceResult {
+  apiId: StorageApiId;
+  /** 読み返せたバイト数（概算） */
+  bytesRemaining: number;
+  /** 元の書き込みバイト数 */
+  originalBytes: number;
+  /** データが残っていたか */
+  persisted: boolean;
+  /** 検証時刻 */
+  checkedAt: number;
+}
+
 // Web Worker 通信用
-export type WorkerMessageType =
-  | "start"
-  | "progress"
-  | "complete"
-  | "error"
-  | "cleanup";
+export type WorkerMessageType = "start" | "progress" | "complete" | "error" | "cleanup";
 
 export interface WorkerStartMessage {
   type: "start";
@@ -114,7 +131,4 @@ export interface WorkerErrorMessage {
 }
 
 export type WorkerInMessage = WorkerStartMessage | WorkerCleanupMessage;
-export type WorkerOutMessage =
-  | WorkerProgressMessage
-  | WorkerCompleteMessage
-  | WorkerErrorMessage;
+export type WorkerOutMessage = WorkerProgressMessage | WorkerCompleteMessage | WorkerErrorMessage;

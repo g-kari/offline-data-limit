@@ -11,7 +11,7 @@ interface UseStorageTestReturn {
   result: TestResult | null;
   progress: TestProgress | null;
   isRunning: boolean;
-  run: (dataType?: DataType) => Promise<void>;
+  run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
@@ -40,10 +40,7 @@ function writeChunk(db: IDBDatabase, data: Uint8Array): Promise<void> {
     req.onerror = () => reject(req.error);
     tx.onerror = () => reject(tx.error);
     tx.onabort = () =>
-      reject(
-        tx.error ??
-          new DOMException("Transaction aborted", "QuotaExceededError")
-      );
+      reject(tx.error ?? new DOMException("Transaction aborted", "QuotaExceededError"));
   });
 }
 
@@ -73,85 +70,81 @@ export function useIndexedDBTest(): UseStorageTestReturn {
     });
   }, []);
 
-  const run = useCallback(async (dataType: DataType = "random") => {
-    if (isRunning) return;
-    setIsRunning(true);
-    setResult(null);
-    setProgress(null);
+  const run = useCallback(
+    async (dataType: DataType = "random", skipCleanup = false) => {
+      if (isRunning) return;
+      setIsRunning(true);
+      setResult(null);
+      setProgress(null);
 
-    let db: IDBDatabase | null = null;
+      let db: IDBDatabase | null = null;
 
-    try {
-      await cleanup();
-      db = await openBenchmarkDB();
-      const maxBytes = await getSafeMaxBytes();
+      try {
+        await cleanup();
+        db = await openBenchmarkDB();
+        const maxBytes = await getSafeMaxBytes();
 
-      const searchResult = await measureStorageLimit({
-        maxBytes,
-        onWrite: async (chunkSize, _keyIndex) => {
-          const chunk = generateChunkByType(chunkSize, dataType);
-          await writeChunk(db!, chunk);
-        },
-        onProgress: (bytesWritten, currentChunkSize, startTime) => {
-          const elapsed = (Date.now() - startTime) / 1000;
-          setProgress({
-            apiId: "indexedDB",
-            bytesWritten,
-            currentChunkSize,
-            throughputMBps:
-              elapsed > 0 ? bytesWritten / 1024 / 1024 / elapsed : 0,
-            phase: "writing",
-          });
-        },
-      });
+        const searchResult = await measureStorageLimit({
+          maxBytes,
+          onWrite: async (chunkSize, _keyIndex) => {
+            const chunk = generateChunkByType(chunkSize, dataType);
+            await writeChunk(db!, chunk);
+          },
+          onProgress: (bytesWritten, currentChunkSize, startTime) => {
+            const elapsed = (Date.now() - startTime) / 1000;
+            setProgress({
+              apiId: "indexedDB",
+              bytesWritten,
+              currentChunkSize,
+              throughputMBps: elapsed > 0 ? bytesWritten / 1024 / 1024 / elapsed : 0,
+              phase: "writing",
+            });
+          },
+        });
 
-      // 検証: データが読み返せるか確認
-      const verified = await verifyData(db);
+        // 検証: データが読み返せるか確認
+        const verified = await verifyData(db);
 
-      db.close();
-      db = null;
+        db.close();
+        db = null;
 
-      setResult({
-        apiId: "indexedDB",
-        actualLimitBytes: searchResult.actualLimitBytes,
-        throughputMBps: searchResult.throughputMBps,
-        reportedQuotaBytes: null,
-        dataType,
-        durationMs: searchResult.durationMs,
-        supported: true,
-        verified,
-      });
+        setResult({
+          apiId: "indexedDB",
+          actualLimitBytes: searchResult.actualLimitBytes,
+          throughputMBps: searchResult.throughputMBps,
+          reportedQuotaBytes: null,
+          dataType,
+          durationMs: searchResult.durationMs,
+          supported: true,
+          verified,
+        });
 
-      setProgress((prev) =>
-        prev ? { ...prev, phase: "cleanup" } : null
-      );
-      await cleanup();
-      setProgress((prev) =>
-        prev ? { ...prev, phase: "done" } : null
-      );
-    } catch (err) {
-      db?.close();
-      const message =
-        err instanceof Error ? err.message : "不明なエラー";
-      setResult({
-        apiId: "indexedDB",
-        actualLimitBytes: 0,
-        throughputMBps: 0,
-        reportedQuotaBytes: null,
-        dataType,
-        durationMs: 0,
-        supported:
-          typeof window !== "undefined" && "indexedDB" in window,
-        error: message,
-      });
-      setProgress((prev) =>
-        prev ? { ...prev, phase: "error" } : null
-      );
-      await cleanup();
-    } finally {
-      setIsRunning(false);
-    }
-  }, [isRunning, cleanup]);
+        if (!skipCleanup) {
+          setProgress((prev) => (prev ? { ...prev, phase: "cleanup" } : null));
+          await cleanup();
+        }
+        setProgress((prev) => (prev ? { ...prev, phase: "done" } : null));
+      } catch (err) {
+        db?.close();
+        const message = err instanceof Error ? err.message : "不明なエラー";
+        setResult({
+          apiId: "indexedDB",
+          actualLimitBytes: 0,
+          throughputMBps: 0,
+          reportedQuotaBytes: null,
+          dataType,
+          durationMs: 0,
+          supported: typeof window !== "undefined" && "indexedDB" in window,
+          error: message,
+        });
+        setProgress((prev) => (prev ? { ...prev, phase: "error" } : null));
+        await cleanup();
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [isRunning, cleanup],
+  );
 
   return { result, progress, isRunning, run, cleanup };
 }

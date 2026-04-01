@@ -4,11 +4,7 @@ const DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 
 export interface BinarySearchCallbacks {
   onWrite: (chunkSize: number, keyIndex: number) => Promise<void>;
-  onProgress?: (
-    bytesWritten: number,
-    chunkSize: number,
-    startTime: number
-  ) => void;
+  onProgress?: (bytesWritten: number, chunkSize: number, startTime: number) => void;
   onCleanup?: () => Promise<void>;
   /** 書き込み上限バイト数（デフォルト: 2GB） */
   maxBytes?: number;
@@ -26,7 +22,7 @@ export interface BinarySearchResult {
  * 1KB未満になったら停止する（最大16ステップで収束）
  */
 export async function measureStorageLimit(
-  callbacks: BinarySearchCallbacks
+  callbacks: BinarySearchCallbacks,
 ): Promise<BinarySearchResult> {
   const startTime = Date.now();
   let totalBytes = 0;
@@ -56,10 +52,7 @@ export async function measureStorageLimit(
   }
 
   const durationMs = Date.now() - startTime;
-  const throughputMBps =
-    durationMs > 0
-      ? (totalBytesWritten / 1024 / 1024) / (durationMs / 1000)
-      : 0;
+  const throughputMBps = durationMs > 0 ? totalBytesWritten / 1024 / 1024 / (durationMs / 1000) : 0;
 
   if (callbacks.onCleanup) {
     await callbacks.onCleanup();
@@ -70,16 +63,10 @@ export async function measureStorageLimit(
 
 function isQuotaError(err: unknown): boolean {
   if (err instanceof DOMException) {
-    return (
-      err.name === "QuotaExceededError" ||
-      err.name === "NS_ERROR_DOM_QUOTA_REACHED"
-    );
+    return err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED";
   }
   if (err instanceof Error) {
-    return (
-      err.name === "QuotaExceededError" ||
-      err.message.toLowerCase().includes("quota")
-    );
+    return err.name === "QuotaExceededError" || err.message.toLowerCase().includes("quota");
   }
   return false;
 }
