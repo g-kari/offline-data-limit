@@ -87,7 +87,9 @@ export function PersistencePanel({
               {results.map((r) => (
                 <tr key={r.apiId} className="border-b border-border/50">
                   <td className="py-2 pr-4 font-medium">{API_NAMES[r.apiId] ?? r.apiId}</td>
-                  <td className="py-2 pr-4">{formatBytes(r.bytesRemaining)}</td>
+                  <td className="py-2 pr-4">
+                    {r.bytesRemaining < 0 ? "不明" : formatBytes(r.bytesRemaining)}
+                  </td>
                   <td className="py-2 pr-4">
                     {r.originalBytes > 0 ? formatBytes(r.originalBytes) : "—"}
                   </td>
