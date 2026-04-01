@@ -63,6 +63,7 @@ export function TestRunner({
               key={dt.id}
               type="button"
               disabled={isRunning}
+              aria-pressed={dataType === dt.id}
               onClick={() => onDataTypeChange(dt.id)}
               className={`flex-1 px-3 py-2 text-sm transition-colors ${
                 dataType === dt.id
