@@ -19,6 +19,7 @@ interface UseBenchmarkReturn {
   currentApiId: StorageApiId | null;
   currentProgress: TestProgress | null;
   runAll: (retainData?: boolean) => Promise<void>;
+  runSingle: (apiId: StorageApiId, retainData?: boolean) => Promise<void>;
   results: Map<StorageApiId, TestResult>;
   history: BenchmarkSession[];
 }
@@ -243,6 +244,53 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
     [isRunning, dataType, localStorage, sessionStorage, indexedDB, cacheApi, opfs, sqlite, pglite],
   );
 
+  const runSingle = useCallback(
+    async (apiId: StorageApiId, retainData = false) => {
+      if (isRunning) return;
+      setIsRunning(true);
+      setCurrentApiId(apiId);
+
+      const testMap: Record<
+        StorageApiId,
+        {
+          run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
+          getResult: () => TestResult | null;
+        }
+      > = {
+        localStorage: { run: localStorage.run, getResult: () => localStorageResultRef.current },
+        sessionStorage: {
+          run: sessionStorage.run,
+          getResult: () => sessionStorageResultRef.current,
+        },
+        indexedDB: { run: indexedDB.run, getResult: () => indexedDBResultRef.current },
+        cacheApi: { run: cacheApi.run, getResult: () => cacheApiResultRef.current },
+        opfs: { run: opfs.run, getResult: () => opfsResultRef.current },
+        sqlite: { run: sqlite.run, getResult: () => sqliteResultRef.current },
+        pglite: { run: pglite.run, getResult: () => pgliteResultRef.current },
+      };
+
+      const test = testMap[apiId];
+      try {
+        // sessionStorageはタブ閉じで消えるため常にクリーンアップ
+        const skip = apiId === "sessionStorage" ? false : retainData;
+        await test.run(dataType, skip);
+      } catch {
+        // エラーは各hookがresultに記録する
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const testResult = test.getResult();
+      if (testResult) {
+        setResults((prev) => new Map(prev).set(apiId, testResult));
+      }
+
+      setCurrentApiId(null);
+      setIsRunning(false);
+    },
+    [isRunning, dataType, localStorage, sessionStorage, indexedDB, cacheApi, opfs, sqlite, pglite],
+  );
+
   // 毎レンダー再生成しないようuseRefで一度だけ構築（refは参照が安定しているため依存配列不要）
   const progressRefMap = useRef<Record<StorageApiId, MutableRefObject<TestProgress | null>>>({
     localStorage: localStorageProgressRef,
@@ -256,5 +304,5 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
 
   const currentProgress = currentApiId ? progressRefMap[currentApiId].current : null;
 
-  return { session, isRunning, currentApiId, currentProgress, runAll, results, history };
+  return { session, isRunning, currentApiId, currentProgress, runAll, runSingle, results, history };
 }

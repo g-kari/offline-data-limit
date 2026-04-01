@@ -15,7 +15,7 @@ import { PersistencePanel } from "./components/persistence-panel";
 export function App() {
   const [dataType, setDataType] = useState<DataType>("random");
   const [retainData, setRetainData] = useState(false);
-  const { session, isRunning, currentApiId, currentProgress, runAll, results, history } =
+  const { session, isRunning, currentApiId, currentProgress, runAll, runSingle, results, history } =
     useBenchmark(dataType);
   const persistence = usePersistenceCheck();
 
@@ -53,8 +53,7 @@ export function App() {
         result: results.get(api.id) ?? null,
         progress: currentApiId === api.id ? currentProgress : null,
         isRunning: currentApiId === api.id,
-        // 全テスト実行のみサポート（個別実行は現在の実装では非対応）
-        onRun: runAll,
+        onRun: () => runSingle(api.id, retainData),
       })),
     [results, currentApiId, currentProgress, runAll],
   );
