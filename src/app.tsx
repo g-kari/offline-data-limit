@@ -55,7 +55,7 @@ export function App() {
         isRunning: currentApiId === api.id,
         onRun: () => runSingle(api.id, retainData),
       })),
-    [results, currentApiId, currentProgress, runAll],
+    [results, currentApiId, currentProgress, runSingle, retainData],
   );
 
   return (

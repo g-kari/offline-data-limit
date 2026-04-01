@@ -24,6 +24,12 @@ interface UseBenchmarkReturn {
   history: BenchmarkSession[];
 }
 
+type TestDef = {
+  id: StorageApiId;
+  run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
+  getResult: () => TestResult | null;
+};
+
 /** 履歴DB を開く */
 function openHistoryDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -126,6 +132,26 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
   const pgliteProgressRef = useRef(pglite.progress);
   pgliteProgressRef.current = pglite.progress;
 
+  // runAllとrunSingleで共有するテスト定義。毎レンダー最新のrun関数を同期する
+  const testDefsRef = useRef<TestDef[]>([]);
+  testDefsRef.current = [
+    { id: "localStorage", run: localStorage.run, getResult: () => localStorageResultRef.current },
+    {
+      id: "sessionStorage",
+      run: sessionStorage.run,
+      getResult: () => sessionStorageResultRef.current,
+    },
+    { id: "indexedDB", run: indexedDB.run, getResult: () => indexedDBResultRef.current },
+    { id: "cacheApi", run: cacheApi.run, getResult: () => cacheApiResultRef.current },
+    { id: "opfs", run: opfs.run, getResult: () => opfsResultRef.current },
+    { id: "sqlite", run: sqlite.run, getResult: () => sqliteResultRef.current },
+    { id: "pglite", run: pglite.run, getResult: () => pgliteResultRef.current },
+  ];
+
+  // isRunningをrefでも追跡して、コールバック内からrefで読む（deps削減のため）
+  const isRunningRef = useRef(isRunning);
+  isRunningRef.current = isRunning;
+
   // 初回マウント時に履歴を読み込む
   const historyLoadedRef = useRef(false);
   if (!historyLoadedRef.current) {
@@ -137,7 +163,7 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
 
   const runAll = useCallback(
     async (retainData = false) => {
-      if (isRunning) return;
+      if (isRunningRef.current) return;
       setIsRunning(true);
       setSession(null);
       setResults(new Map());
@@ -152,46 +178,8 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
       const storageEstimateBefore = await getStorageEstimate();
       const browserInfo = await getBrowserInfo();
 
-      // 逐次実行する全テスト（共有クォータプール干渉防止のため並列不可）
-      const tests: {
-        id: StorageApiId;
-        run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
-        getResult: () => TestResult | null;
-      }[] = [
-        {
-          id: "localStorage",
-          run: localStorage.run,
-          getResult: () => localStorageResultRef.current,
-        },
-        {
-          id: "sessionStorage",
-          run: sessionStorage.run,
-          getResult: () => sessionStorageResultRef.current,
-        },
-        {
-          id: "indexedDB",
-          run: indexedDB.run,
-          getResult: () => indexedDBResultRef.current,
-        },
-        {
-          id: "cacheApi",
-          run: cacheApi.run,
-          getResult: () => cacheApiResultRef.current,
-        },
-        { id: "opfs", run: opfs.run, getResult: () => opfsResultRef.current },
-        {
-          id: "sqlite",
-          run: sqlite.run,
-          getResult: () => sqliteResultRef.current,
-        },
-        {
-          id: "pglite",
-          run: pglite.run,
-          getResult: () => pgliteResultRef.current,
-        },
-      ];
-
-      for (const test of tests) {
+      // 逐次実行（共有クォータプール干渉防止のため並列不可）
+      for (const test of testDefsRef.current) {
         setCurrentApiId(test.id);
 
         try {
@@ -241,35 +229,16 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
 
       setIsRunning(false);
     },
-    [isRunning, dataType, localStorage, sessionStorage, indexedDB, cacheApi, opfs, sqlite, pglite],
+    [dataType],
   );
 
   const runSingle = useCallback(
     async (apiId: StorageApiId, retainData = false) => {
-      if (isRunning) return;
+      if (isRunningRef.current) return;
       setIsRunning(true);
       setCurrentApiId(apiId);
 
-      const testMap: Record<
-        StorageApiId,
-        {
-          run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
-          getResult: () => TestResult | null;
-        }
-      > = {
-        localStorage: { run: localStorage.run, getResult: () => localStorageResultRef.current },
-        sessionStorage: {
-          run: sessionStorage.run,
-          getResult: () => sessionStorageResultRef.current,
-        },
-        indexedDB: { run: indexedDB.run, getResult: () => indexedDBResultRef.current },
-        cacheApi: { run: cacheApi.run, getResult: () => cacheApiResultRef.current },
-        opfs: { run: opfs.run, getResult: () => opfsResultRef.current },
-        sqlite: { run: sqlite.run, getResult: () => sqliteResultRef.current },
-        pglite: { run: pglite.run, getResult: () => pgliteResultRef.current },
-      };
-
-      const test = testMap[apiId];
+      const test = testDefsRef.current.find((t) => t.id === apiId)!;
       try {
         // sessionStorageはタブ閉じで消えるため常にクリーンアップ
         const skip = apiId === "sessionStorage" ? false : retainData;
@@ -288,7 +257,7 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
       setCurrentApiId(null);
       setIsRunning(false);
     },
-    [isRunning, dataType, localStorage, sessionStorage, indexedDB, cacheApi, opfs, sqlite, pglite],
+    [dataType],
   );
 
   // 毎レンダー再生成しないようuseRefで一度だけ構築（refは参照が安定しているため依存配列不要）
