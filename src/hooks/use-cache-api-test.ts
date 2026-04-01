@@ -36,9 +36,17 @@ export function useCacheApiTest(): UseStorageTestReturn {
       const searchResult = await measureStorageLimit({
         onWrite: async (chunkSize, keyIndex) => {
           const chunk = generateChunkByType(chunkSize, dataType);
+          const contentType = {
+            random: "application/octet-stream",
+            bmp: "image/bmp",
+            text: "text/plain; charset=utf-8",
+            json: "application/json; charset=utf-8",
+          }[dataType];
           // Blob は ArrayBuffer を要求するため buffer を渡す
-          const blob = new Blob([chunk.buffer as ArrayBuffer]);
-          const response = new Response(blob);
+          const blob = new Blob([chunk.buffer as ArrayBuffer], { type: contentType });
+          const response = new Response(blob, {
+            headers: { "Content-Type": contentType },
+          });
           await cache.put(`/bench/${keyIndex}`, response);
         },
         onProgress: (bytesWritten, currentChunkSize, startTime) => {
