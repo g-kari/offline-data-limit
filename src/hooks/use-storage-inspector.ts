@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
 import type { StorageApiId } from "../types";
 
+export const PAGE_SIZE = 20;
+
 export interface LsRecord {
   key: string;
   length: number;
@@ -40,12 +42,12 @@ export interface PgliteStore {
 }
 
 export type InspectorData =
-  | { apiId: "localStorage" | "sessionStorage"; records: LsRecord[] }
-  | { apiId: "indexedDB"; records: IdbRecord[] }
-  | { apiId: "cacheApi"; records: CacheRecord[] }
-  | { apiId: "opfs"; files: OpfsFile[] }
-  | { apiId: "sqlite"; files: SqliteFile[] }
-  | { apiId: "pglite"; stores: PgliteStore[] };
+  | { apiId: "localStorage" | "sessionStorage"; records: LsRecord[]; totalCount: number }
+  | { apiId: "indexedDB"; records: IdbRecord[]; totalCount: number }
+  | { apiId: "cacheApi"; records: CacheRecord[]; totalCount: number }
+  | { apiId: "opfs"; files: OpfsFile[]; totalCount: number }
+  | { apiId: "sqlite"; files: SqliteFile[]; totalCount: number }
+  | { apiId: "pglite"; stores: PgliteStore[]; totalCount: number };
 
 const LS_PREFIX = "__bench_ls_";
 const SS_PREFIX = "__bench_ss_";
@@ -61,82 +63,131 @@ function toHex(bytes: Uint8Array, maxBytes = 32): string {
     .join(" ");
 }
 
-async function inspectLocalStorage(prefix: string): Promise<LsRecord[]> {
-  const records: LsRecord[] = [];
+async function inspectLocalStorage(
+  prefix: string,
+  page: number,
+): Promise<{ records: LsRecord[]; totalCount: number }> {
+  const allKeys: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key?.startsWith(prefix)) {
-      const val = localStorage.getItem(key) ?? "";
-      records.push({ key, length: val.length, preview: val.slice(0, 64) });
-    }
+    if (key?.startsWith(prefix)) allKeys.push(key);
   }
-  return records;
+  const totalCount = allKeys.length;
+  const pageKeys = allKeys.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const records: LsRecord[] = pageKeys.map((key) => {
+    const val = localStorage.getItem(key) ?? "";
+    return { key, length: val.length, preview: val.slice(0, 64) };
+  });
+  return { records, totalCount };
 }
 
-async function inspectIndexedDB(): Promise<IdbRecord[]> {
+async function inspectIndexedDB(
+  page: number,
+): Promise<{ records: IdbRecord[]; totalCount: number }> {
   return new Promise((resolve) => {
     const req = indexedDB.open(IDB_NAME, 1);
     req.onupgradeneeded = () => {
       req.result.close();
       indexedDB.deleteDatabase(IDB_NAME);
-      resolve([]);
+      resolve({ records: [], totalCount: 0 });
     };
-    req.onerror = () => resolve([]);
+    req.onerror = () => resolve({ records: [], totalCount: 0 });
     req.onsuccess = () => {
       const db = req.result;
       const tx = db.transaction(IDB_STORE, "readonly");
       const store = tx.objectStore(IDB_STORE);
-      const allReq = store.getAll();
-      allReq.onsuccess = () => {
-        db.close();
-        const records = (allReq.result as Uint8Array[]).map((val, i) => ({
-          index: i,
-          byteLength: val?.byteLength ?? 0,
-          hexPreview: val ? toHex(val) : "",
-        }));
-        resolve(records);
+      const countReq = store.count();
+      countReq.onsuccess = () => {
+        const totalCount = countReq.result;
+        const offset = page * PAGE_SIZE;
+        if (offset >= totalCount) {
+          db.close();
+          resolve({ records: [], totalCount });
+          return;
+        }
+        const records: IdbRecord[] = [];
+        let advanced = false;
+        const cursorReq = store.openCursor();
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result;
+          if (!cursor) {
+            db.close();
+            resolve({ records, totalCount });
+            return;
+          }
+          // 先頭ページ以外は cursor.advance() で一気にスキップ
+          if (!advanced && offset > 0) {
+            advanced = true;
+            cursor.advance(offset);
+            return;
+          }
+          advanced = true;
+          const val = cursor.value as Uint8Array;
+          records.push({
+            index: offset + records.length,
+            byteLength: val?.byteLength ?? 0,
+            hexPreview: val ? toHex(val) : "",
+          });
+          if (records.length >= PAGE_SIZE) {
+            db.close();
+            resolve({ records, totalCount });
+            return;
+          }
+          cursor.continue();
+        };
+        cursorReq.onerror = () => {
+          db.close();
+          resolve({ records, totalCount });
+        };
       };
-      allReq.onerror = () => {
+      countReq.onerror = () => {
         db.close();
-        resolve([]);
+        resolve({ records: [], totalCount: 0 });
       };
     };
   });
 }
 
-async function inspectCacheApi(): Promise<CacheRecord[]> {
-  if (!("caches" in globalThis)) return [];
+async function inspectCacheApi(
+  page: number,
+): Promise<{ records: CacheRecord[]; totalCount: number }> {
+  if (!("caches" in globalThis)) return { records: [], totalCount: 0 };
   try {
     const cache = await caches.open(CACHE_NAME);
-    const keys = await cache.keys();
+    const allKeys = await cache.keys();
+    const totalCount = allKeys.length;
+    const pageKeys = allKeys.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
     const records: CacheRecord[] = [];
-    for (const req of keys) {
-      const resp = await cache.match(req);
+    for (const reqKey of pageKeys) {
+      const resp = await cache.match(reqKey);
       if (!resp) continue;
       const blob = await resp.blob();
       const byteLength = blob.size;
       const contentType = resp.headers.get("Content-Type") ?? "";
-      // hex preview: read first 32 bytes only
       const sliced = blob.slice(0, 32);
       const arrBuf = await sliced.arrayBuffer();
-      const hexPreview = toHex(new Uint8Array(arrBuf));
-      records.push({ url: req.url, byteLength, contentType, hexPreview });
+      records.push({
+        url: reqKey.url,
+        byteLength,
+        contentType,
+        hexPreview: toHex(new Uint8Array(arrBuf)),
+      });
     }
-    return records;
+    return { records, totalCount };
   } catch {
-    return [];
+    return { records: [], totalCount: 0 };
   }
 }
 
-async function inspectOpfs(): Promise<OpfsFile[]> {
-  if (!navigator.storage?.getDirectory) return [];
+async function inspectOpfs(): Promise<{ files: OpfsFile[]; totalCount: number }> {
+  if (!navigator.storage?.getDirectory) return { files: [], totalCount: 0 };
   try {
     const root = await navigator.storage.getDirectory();
     const handle = await root.getFileHandle(OPFS_FILE);
     const file = await handle.getFile();
     const sliced = file.slice(0, 32);
     const arrBuf = await sliced.arrayBuffer();
-    return [
+    const files = [
       {
         name: OPFS_FILE,
         byteLength: file.size,
@@ -144,13 +195,14 @@ async function inspectOpfs(): Promise<OpfsFile[]> {
         hexPreview: toHex(new Uint8Array(arrBuf)),
       },
     ];
+    return { files, totalCount: files.length };
   } catch {
-    return [];
+    return { files: [], totalCount: 0 };
   }
 }
 
-async function inspectSqlite(): Promise<SqliteFile[]> {
-  if (!navigator.storage?.getDirectory) return [];
+async function inspectSqlite(): Promise<{ files: SqliteFile[]; totalCount: number }> {
+  if (!navigator.storage?.getDirectory) return { files: [], totalCount: 0 };
   try {
     const root = await navigator.storage.getDirectory();
     const files: SqliteFile[] = [];
@@ -176,22 +228,22 @@ async function inspectSqlite(): Promise<SqliteFile[]> {
         files.push({ name, byteLength: f.size, lastModified: f.lastModified });
       }
     }
-    return files;
+    return { files, totalCount: files.length };
   } catch {
-    return [];
+    return { files: [], totalCount: 0 };
   }
 }
 
-async function inspectPglite(): Promise<PgliteStore[]> {
+async function inspectPglite(): Promise<{ stores: PgliteStore[]; totalCount: number }> {
   return new Promise((resolve) => {
     const req = indexedDB.open(PGLITE_IDB);
-    req.onerror = () => resolve([]);
+    req.onerror = () => resolve({ stores: [], totalCount: 0 });
     req.onsuccess = () => {
       const db = req.result;
       const storeNames = Array.from(db.objectStoreNames);
       if (storeNames.length === 0) {
         db.close();
-        resolve([]);
+        resolve({ stores: [], totalCount: 0 });
         return;
       }
       const results: PgliteStore[] = [];
@@ -199,29 +251,40 @@ async function inspectPglite(): Promise<PgliteStore[]> {
       for (const name of storeNames) {
         const tx = db.transaction(name, "readonly");
         const store = tx.objectStore(name);
-        const allReq = store.getAll();
-        allReq.onsuccess = () => {
-          const records = allReq.result as unknown[];
-          let byteLength = 0;
-          for (const r of records) {
-            if (r instanceof ArrayBuffer) byteLength += r.byteLength;
-            else if (ArrayBuffer.isView(r)) byteLength += (r as ArrayBufferView).byteLength;
-            else byteLength += JSON.stringify(r).length;
-          }
-          results.push({ name, recordCount: records.length, byteLength });
-          remaining--;
-          if (remaining === 0) {
-            db.close();
-            results.sort((a, b) => a.name.localeCompare(b.name));
-            resolve(results);
-          }
+        const countReq = store.count();
+        countReq.onsuccess = () => {
+          const recordCount = countReq.result;
+          // サイズ推測: 先頭1件だけ読んでサイズを計測し全件に掛ける（高速な近似）
+          const sampleReq = store.openCursor();
+          sampleReq.onsuccess = () => {
+            const cursor = sampleReq.result;
+            let sampleSize = 0;
+            if (cursor) {
+              const r = cursor.value as unknown;
+              if (r instanceof ArrayBuffer) sampleSize = r.byteLength;
+              else if (ArrayBuffer.isView(r)) sampleSize = (r as ArrayBufferView).byteLength;
+              else sampleSize = JSON.stringify(r).length;
+            }
+            results.push({ name, recordCount, byteLength: sampleSize * recordCount });
+            if (--remaining === 0) {
+              db.close();
+              results.sort((a, b) => a.name.localeCompare(b.name));
+              resolve({ stores: results, totalCount: results.length });
+            }
+          };
+          sampleReq.onerror = () => {
+            results.push({ name, recordCount, byteLength: 0 });
+            if (--remaining === 0) {
+              db.close();
+              resolve({ stores: results, totalCount: results.length });
+            }
+          };
         };
-        allReq.onerror = () => {
+        countReq.onerror = () => {
           results.push({ name, recordCount: 0, byteLength: 0 });
-          remaining--;
-          if (remaining === 0) {
+          if (--remaining === 0) {
             db.close();
-            resolve(results);
+            resolve({ stores: results, totalCount: results.length });
           }
         };
       }
@@ -233,38 +296,54 @@ export function useStorageInspector() {
   const [data, setData] = useState<InspectorData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeApiId, setActiveApiId] = useState<StorageApiId>("localStorage");
+  const [page, setPage] = useState(0);
 
-  const inspect = useCallback(async (apiId: StorageApiId) => {
+  const inspect = useCallback(async (apiId: StorageApiId, pageNum = 0) => {
     setIsLoading(true);
     setActiveApiId(apiId);
+    setPage(pageNum);
     try {
       switch (apiId) {
-        case "localStorage":
-          setData({ apiId, records: await inspectLocalStorage(LS_PREFIX) });
+        case "localStorage": {
+          const r = await inspectLocalStorage(LS_PREFIX, pageNum);
+          setData({ apiId, ...r });
           break;
-        case "sessionStorage":
-          setData({ apiId, records: await inspectLocalStorage(SS_PREFIX) });
+        }
+        case "sessionStorage": {
+          const r = await inspectLocalStorage(SS_PREFIX, pageNum);
+          setData({ apiId, ...r });
           break;
-        case "indexedDB":
-          setData({ apiId, records: await inspectIndexedDB() });
+        }
+        case "indexedDB": {
+          const r = await inspectIndexedDB(pageNum);
+          setData({ apiId, ...r });
           break;
-        case "cacheApi":
-          setData({ apiId, records: await inspectCacheApi() });
+        }
+        case "cacheApi": {
+          const r = await inspectCacheApi(pageNum);
+          setData({ apiId, ...r });
           break;
-        case "opfs":
-          setData({ apiId, files: await inspectOpfs() });
+        }
+        case "opfs": {
+          const r = await inspectOpfs();
+          setData({ apiId, ...r });
           break;
-        case "sqlite":
-          setData({ apiId, files: await inspectSqlite() });
+        }
+        case "sqlite": {
+          const r = await inspectSqlite();
+          setData({ apiId, ...r });
           break;
-        case "pglite":
-          setData({ apiId, stores: await inspectPglite() });
+        }
+        case "pglite": {
+          const r = await inspectPglite();
+          setData({ apiId, ...r });
           break;
+        }
       }
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  return { data, isLoading, activeApiId, inspect };
+  return { data, isLoading, activeApiId, page, inspect };
 }

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useStorageInspector } from "../hooks/use-storage-inspector";
+import { useStorageInspector, PAGE_SIZE } from "../hooks/use-storage-inspector";
 import type { InspectorData } from "../hooks/use-storage-inspector";
 import { formatBytes } from "../utils/format";
 import { API_INFO } from "../data/api-info";
@@ -18,84 +18,135 @@ function EmptyState() {
   );
 }
 
-function DataTable({ data }: { data: InspectorData }) {
+interface PagerProps {
+  page: number;
+  totalCount: number;
+  onPage: (p: number) => void;
+}
+
+function Pager({ page, totalCount, onPage }: PagerProps) {
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center gap-3 mt-3 text-xs text-muted">
+      <button
+        type="button"
+        disabled={page === 0}
+        onClick={() => onPage(page - 1)}
+        className="px-2 py-1 rounded border border-border disabled:opacity-40 hover:opacity-80 transition-opacity"
+      >
+        ← 前へ
+      </button>
+      <span>
+        {page + 1} / {totalPages} ページ（全 {totalCount.toLocaleString()} 件）
+      </span>
+      <button
+        type="button"
+        disabled={page >= totalPages - 1}
+        onClick={() => onPage(page + 1)}
+        className="px-2 py-1 rounded border border-border disabled:opacity-40 hover:opacity-80 transition-opacity"
+      >
+        次へ →
+      </button>
+    </div>
+  );
+}
+
+function DataTable({
+  data,
+  page,
+  onPage,
+}: {
+  data: InspectorData;
+  page: number;
+  onPage: (p: number) => void;
+}) {
   if (data.apiId === "localStorage" || data.apiId === "sessionStorage") {
     if (data.records.length === 0) return <EmptyState />;
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-border text-left text-muted">
-              <th className="pb-2 pr-4 font-medium">キー</th>
-              <th className="pb-2 pr-4 font-medium">サイズ（文字）</th>
-              <th className="pb-2 font-medium">先頭64文字</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.records.map((r) => (
-              <tr key={r.key} className="border-b border-border/40">
-                <td className="py-2 pr-4 font-mono break-all">{r.key}</td>
-                <td className="py-2 pr-4">{r.length.toLocaleString()}</td>
-                <td className="py-2 font-mono break-all text-muted">{r.preview}</td>
+      <>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border text-left text-muted">
+                <th className="pb-2 pr-4 font-medium">キー</th>
+                <th className="pb-2 pr-4 font-medium">サイズ（文字）</th>
+                <th className="pb-2 font-medium">先頭64文字</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data.records.map((r) => (
+                <tr key={r.key} className="border-b border-border/40">
+                  <td className="py-2 pr-4 font-mono break-all">{r.key}</td>
+                  <td className="py-2 pr-4">{r.length.toLocaleString()}</td>
+                  <td className="py-2 font-mono break-all text-muted">{r.preview}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pager page={page} totalCount={data.totalCount} onPage={onPage} />
+      </>
     );
   }
 
   if (data.apiId === "indexedDB") {
     if (data.records.length === 0) return <EmptyState />;
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-border text-left text-muted">
-              <th className="pb-2 pr-4 font-medium">#</th>
-              <th className="pb-2 pr-4 font-medium">サイズ</th>
-              <th className="pb-2 font-medium">先頭32バイト（hex）</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.records.map((r) => (
-              <tr key={r.index} className="border-b border-border/40">
-                <td className="py-2 pr-4">{r.index}</td>
-                <td className="py-2 pr-4">{formatBytes(r.byteLength)}</td>
-                <td className="py-2 font-mono text-muted break-all">{r.hexPreview}</td>
+      <>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border text-left text-muted">
+                <th className="pb-2 pr-4 font-medium">#</th>
+                <th className="pb-2 pr-4 font-medium">サイズ</th>
+                <th className="pb-2 font-medium">先頭32バイト（hex）</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data.records.map((r) => (
+                <tr key={r.index} className="border-b border-border/40">
+                  <td className="py-2 pr-4">{r.index}</td>
+                  <td className="py-2 pr-4">{formatBytes(r.byteLength)}</td>
+                  <td className="py-2 font-mono text-muted break-all">{r.hexPreview}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pager page={page} totalCount={data.totalCount} onPage={onPage} />
+      </>
     );
   }
 
   if (data.apiId === "cacheApi") {
     if (data.records.length === 0) return <EmptyState />;
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-border text-left text-muted">
-              <th className="pb-2 pr-4 font-medium">URL</th>
-              <th className="pb-2 pr-4 font-medium">サイズ</th>
-              <th className="pb-2 pr-4 font-medium">Content-Type</th>
-              <th className="pb-2 font-medium">先頭32バイト（hex）</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.records.map((r) => (
-              <tr key={r.url} className="border-b border-border/40">
-                <td className="py-2 pr-4 font-mono break-all max-w-[12rem]">{r.url}</td>
-                <td className="py-2 pr-4 whitespace-nowrap">{formatBytes(r.byteLength)}</td>
-                <td className="py-2 pr-4 text-muted">{r.contentType || "—"}</td>
-                <td className="py-2 font-mono text-muted break-all">{r.hexPreview}</td>
+      <>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border text-left text-muted">
+                <th className="pb-2 pr-4 font-medium">URL</th>
+                <th className="pb-2 pr-4 font-medium">サイズ</th>
+                <th className="pb-2 pr-4 font-medium">Content-Type</th>
+                <th className="pb-2 font-medium">先頭32バイト（hex）</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data.records.map((r) => (
+                <tr key={r.url} className="border-b border-border/40">
+                  <td className="py-2 pr-4 font-mono break-all max-w-[12rem]">{r.url}</td>
+                  <td className="py-2 pr-4 whitespace-nowrap">{formatBytes(r.byteLength)}</td>
+                  <td className="py-2 pr-4 text-muted">{r.contentType || "—"}</td>
+                  <td className="py-2 font-mono text-muted break-all">{r.hexPreview}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pager page={page} totalCount={data.totalCount} onPage={onPage} />
+      </>
     );
   }
 
@@ -132,60 +183,64 @@ function DataTable({ data }: { data: InspectorData }) {
   if (data.apiId === "sqlite") {
     if (data.files.length === 0) return <EmptyState />;
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-border text-left text-muted">
-              <th className="pb-2 pr-4 font-medium">ファイル名（OPFS内）</th>
-              <th className="pb-2 pr-4 font-medium">サイズ</th>
-              <th className="pb-2 font-medium">最終更新</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.files.map((f) => (
-              <tr key={f.name} className="border-b border-border/40">
-                <td className="py-2 pr-4 font-mono">{f.name}</td>
-                <td className="py-2 pr-4">{formatBytes(f.byteLength)}</td>
-                <td className="py-2 text-muted">
-                  {new Date(f.lastModified).toLocaleString("ja-JP")}
-                </td>
+      <>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border text-left text-muted">
+                <th className="pb-2 pr-4 font-medium">ファイル名（OPFS内）</th>
+                <th className="pb-2 pr-4 font-medium">サイズ</th>
+                <th className="pb-2 font-medium">最終更新</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.files.map((f) => (
+                <tr key={f.name} className="border-b border-border/40">
+                  <td className="py-2 pr-4 font-mono">{f.name}</td>
+                  <td className="py-2 pr-4">{formatBytes(f.byteLength)}</td>
+                  <td className="py-2 text-muted">
+                    {new Date(f.lastModified).toLocaleString("ja-JP")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p className="text-xs text-muted mt-2">
           SQLの内容はwa-sqliteを再初期化しないと読み出せないため、ファイルメタデータのみ表示しています。
         </p>
-      </div>
+      </>
     );
   }
 
   if (data.apiId === "pglite") {
     if (data.stores.length === 0) return <EmptyState />;
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-border text-left text-muted">
-              <th className="pb-2 pr-4 font-medium">IDBストア名</th>
-              <th className="pb-2 pr-4 font-medium">レコード数</th>
-              <th className="pb-2 font-medium">推定サイズ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.stores.map((s) => (
-              <tr key={s.name} className="border-b border-border/40">
-                <td className="py-2 pr-4 font-mono">{s.name}</td>
-                <td className="py-2 pr-4">{s.recordCount.toLocaleString()}</td>
-                <td className="py-2">{formatBytes(s.byteLength)}</td>
+      <>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border text-left text-muted">
+                <th className="pb-2 pr-4 font-medium">IDBストア名</th>
+                <th className="pb-2 pr-4 font-medium">レコード数</th>
+                <th className="pb-2 font-medium">推定サイズ（先頭1件 × 件数）</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.stores.map((s) => (
+                <tr key={s.name} className="border-b border-border/40">
+                  <td className="py-2 pr-4 font-mono">{s.name}</td>
+                  <td className="py-2 pr-4">{s.recordCount.toLocaleString()}</td>
+                  <td className="py-2">{s.byteLength > 0 ? formatBytes(s.byteLength) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p className="text-xs text-muted mt-2">
-          SQLの内容はPGLiteを再初期化しないと読み出せないため、IndexedDBのストア一覧のみ表示しています。
+          SQLの内容はPGLiteを再初期化しないと読み出せないため、IndexedDBのストア一覧のみ表示しています。サイズは先頭1件のバイト数×件数の近似値です。
         </p>
-      </div>
+      </>
     );
   }
 
@@ -193,10 +248,10 @@ function DataTable({ data }: { data: InspectorData }) {
 }
 
 export function DataInspectorPage() {
-  const { data, isLoading, activeApiId, inspect } = useStorageInspector();
+  const { data, isLoading, activeApiId, page, inspect } = useStorageInspector();
 
   useEffect(() => {
-    inspect("localStorage");
+    inspect("localStorage", 0);
   }, [inspect]);
 
   return (
@@ -214,7 +269,7 @@ export function DataInspectorPage() {
           <button
             key={tab.id}
             type="button"
-            onClick={() => inspect(tab.id)}
+            onClick={() => inspect(tab.id, 0)}
             className={`px-3 py-1.5 text-xs rounded-sm font-medium transition-colors ${
               activeApiId === tab.id
                 ? "bg-accent text-white"
@@ -237,7 +292,7 @@ export function DataInspectorPage() {
                 sessionStorageはタブセッション内のみ保持されます。タブを閉じるとデータは消去されます。
               </p>
             )}
-            <DataTable data={data} />
+            <DataTable data={data} page={page} onPage={(p) => inspect(activeApiId, p)} />
           </>
         ) : null}
       </div>
