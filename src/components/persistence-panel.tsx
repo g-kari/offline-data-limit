@@ -123,7 +123,7 @@ export function PersistencePanel({
         </label>
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-3 mb-4 flex-wrap">
         <button
           type="button"
           onClick={onCheck}
@@ -140,6 +140,12 @@ export function PersistencePanel({
         >
           {isCleaning ? "削除中..." : "全データ削除"}
         </button>
+        <a
+          href="#/inspect"
+          className="rounded-sm border border-border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80 ml-auto"
+        >
+          データ詳細を見る →
+        </a>
       </div>
 
       {hasResults && (

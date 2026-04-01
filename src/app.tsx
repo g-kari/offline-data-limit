@@ -11,8 +11,21 @@ import { TestRunner } from "./components/test-runner";
 import { ResultsDashboard } from "./components/results-dashboard";
 import { ResultsHistory } from "./components/results-history";
 import { PersistencePanel } from "./components/persistence-panel";
+import { DataInspectorPage } from "./pages/data-inspector";
+
+function useHashRouter() {
+  const [hash, setHash] = useState(window.location.hash);
+  useEffect(() => {
+    const handler = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", handler);
+    return () => window.removeEventListener("hashchange", handler);
+  }, []);
+  return hash;
+}
 
 export function App() {
+  const hash = useHashRouter();
+  if (hash === "#/inspect") return <DataInspectorPage />;
   const [dataType, setDataType] = useState<DataType>("random");
   const [retainData, setRetainData] = useState(false);
   const { session, isRunning, currentApiId, currentProgress, runAll, runSingle, results, history } =
