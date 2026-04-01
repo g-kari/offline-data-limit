@@ -3,7 +3,7 @@
   "compatibility_date": "2026-03-31",
   "routes": [
     {
-      "pattern": "offline-data-limit.0g0.xyz/*",
+      "pattern": "offline-data-limit.0g0.xyz",
       "custom_domain": true
     }
   ],
