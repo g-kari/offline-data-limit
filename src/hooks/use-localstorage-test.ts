@@ -92,6 +92,9 @@ export function useLocalStorageTest(): UseStorageTestReturn {
       const throughputMBps =
         durationMs > 0 ? totalBytes / 1024 / 1024 / (durationMs / 1000) : 0;
 
+      // 検証: 最初のエントリが読み返せるか確認
+      const verified = localStorage.getItem(`${KEY_PREFIX}0`) !== null;
+
       setResult({
         apiId: "localStorage",
         actualLimitBytes: totalBytes,
@@ -100,6 +103,7 @@ export function useLocalStorageTest(): UseStorageTestReturn {
         dataType,
         durationMs,
         supported: true,
+        verified,
       });
 
       setProgress((prev) => (prev ? { ...prev, phase: "cleanup" } : null));

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import type { TestResult, TestProgress, DataType } from "../types";
 import { measureStorageLimit } from "../utils/binary-search";
 import { generateChunkByType } from "../utils/chunk-generator";
+import { getSafeMaxBytes } from "../utils/storage-cap";
 
 const IDB_NAME = "/pglite/benchmark-pglite";
 
@@ -27,15 +28,13 @@ export function usePgliteTest(): UseStorageTestReturn {
   const [result, setResult] = useState<TestResult | null>(null);
   const [progress, setProgress] = useState<TestProgress | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const pgRef = useRef<{ close: () => Promise<void> } | null>(null);
+  const pgRef = useRef<{ close: () => Promise<void>; exec: (sql: string) => Promise<unknown> } | null>(null);
 
   const cleanup = useCallback(async () => {
-    // PGliteインスタンスを閉じる
     if (pgRef.current) {
       await pgRef.current.close().catch(() => {});
       pgRef.current = null;
     }
-    // IndexedDB からPGliteデータを削除
     await new Promise<void>((resolve) => {
       const req = indexedDB.deleteDatabase(IDB_NAME);
       req.onsuccess = () => resolve();
@@ -53,17 +52,18 @@ export function usePgliteTest(): UseStorageTestReturn {
     try {
       await cleanup();
 
-      // PGlite を動的import
       const { PGlite } = await import("@electric-sql/pglite");
       const pg = await PGlite.create("idb://benchmark-pglite");
       pgRef.current = pg;
 
-      // テーブル作成
       await pg.exec(
         "CREATE TABLE IF NOT EXISTS data (id SERIAL, chunk BYTEA)"
       );
 
+      const maxBytes = await getSafeMaxBytes();
+
       const searchResult = await measureStorageLimit({
+        maxBytes,
         onWrite: async (chunkSize, _keyIndex) => {
           const chunk = generateChunkByType(chunkSize, dataType);
           const hexStr = "\\x" + toHex(chunk);
@@ -82,6 +82,15 @@ export function usePgliteTest(): UseStorageTestReturn {
         },
       });
 
+      // 検証: レコードが読み返せるか確認
+      let verified = false;
+      try {
+        const res = await pg.exec("SELECT COUNT(*) AS cnt FROM data") as unknown as { rows: { cnt: number }[] }[];
+        verified = res[0]?.rows?.[0]?.cnt > 0;
+      } catch {
+        verified = false;
+      }
+
       setResult({
         apiId: "pglite",
         actualLimitBytes: searchResult.actualLimitBytes,
@@ -90,6 +99,7 @@ export function usePgliteTest(): UseStorageTestReturn {
         dataType,
         durationMs: searchResult.durationMs,
         supported: true,
+        verified,
       });
 
       setProgress((prev) =>

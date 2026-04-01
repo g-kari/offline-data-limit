@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import type { TestResult, TestProgress, DataType } from "../types";
 import { measureStorageLimit } from "../utils/binary-search";
 import { generateChunkByType } from "../utils/chunk-generator";
+import { getSafeMaxBytes } from "../utils/storage-cap";
 
 const DB_NAME = "__benchmark_idb";
 const STORE_NAME = "data";
@@ -38,12 +39,22 @@ function writeChunk(db: IDBDatabase, data: Uint8Array): Promise<void> {
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
     tx.onerror = () => reject(tx.error);
-    // クォータ超過時は tx.onabort が発火しPromiseがハングするため明示的にrejectする
     tx.onabort = () =>
       reject(
         tx.error ??
           new DOMException("Transaction aborted", "QuotaExceededError")
       );
+  });
+}
+
+/** IndexedDB からレコード件数を取得して検証する */
+function verifyData(db: IDBDatabase): Promise<boolean> {
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.count();
+    req.onsuccess = () => resolve(req.result > 0);
+    req.onerror = () => resolve(false);
   });
 }
 
@@ -73,8 +84,10 @@ export function useIndexedDBTest(): UseStorageTestReturn {
     try {
       await cleanup();
       db = await openBenchmarkDB();
+      const maxBytes = await getSafeMaxBytes();
 
       const searchResult = await measureStorageLimit({
+        maxBytes,
         onWrite: async (chunkSize, _keyIndex) => {
           const chunk = generateChunkByType(chunkSize, dataType);
           await writeChunk(db!, chunk);
@@ -92,6 +105,9 @@ export function useIndexedDBTest(): UseStorageTestReturn {
         },
       });
 
+      // 検証: データが読み返せるか確認
+      const verified = await verifyData(db);
+
       db.close();
       db = null;
 
@@ -103,6 +119,7 @@ export function useIndexedDBTest(): UseStorageTestReturn {
         dataType,
         durationMs: searchResult.durationMs,
         supported: true,
+        verified,
       });
 
       setProgress((prev) =>

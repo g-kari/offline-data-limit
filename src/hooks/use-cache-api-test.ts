@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import type { TestResult, TestProgress, DataType } from "../types";
 import { measureStorageLimit } from "../utils/binary-search";
 import { generateChunkByType } from "../utils/chunk-generator";
+import { getSafeMaxBytes } from "../utils/storage-cap";
 
 const CACHE_NAME = "__benchmark_cache";
 
@@ -32,8 +33,11 @@ export function useCacheApiTest(): UseStorageTestReturn {
     try {
       await cleanup();
       const cache = await caches.open(CACHE_NAME);
+      const maxBytes = await getSafeMaxBytes();
+      let lastKeyIndex = 0;
 
       const searchResult = await measureStorageLimit({
+        maxBytes,
         onWrite: async (chunkSize, keyIndex) => {
           const chunk = generateChunkByType(chunkSize, dataType);
           const contentType = {
@@ -42,12 +46,12 @@ export function useCacheApiTest(): UseStorageTestReturn {
             text: "text/plain; charset=utf-8",
             json: "application/json; charset=utf-8",
           }[dataType];
-          // Blob は ArrayBuffer を要求するため buffer を渡す
           const blob = new Blob([chunk.buffer as ArrayBuffer], { type: contentType });
           const response = new Response(blob, {
             headers: { "Content-Type": contentType },
           });
           await cache.put(`/bench/${keyIndex}`, response);
+          lastKeyIndex = keyIndex;
         },
         onProgress: (bytesWritten, currentChunkSize, startTime) => {
           const elapsed = (Date.now() - startTime) / 1000;
@@ -62,6 +66,13 @@ export function useCacheApiTest(): UseStorageTestReturn {
         },
       });
 
+      // 検証: 最初のエントリが読み返せるか確認
+      let verified = false;
+      if (lastKeyIndex >= 0) {
+        const resp = await cache.match("/bench/0");
+        verified = resp !== undefined;
+      }
+
       setResult({
         apiId: "cacheApi",
         actualLimitBytes: searchResult.actualLimitBytes,
@@ -70,6 +81,7 @@ export function useCacheApiTest(): UseStorageTestReturn {
         dataType,
         durationMs: searchResult.durationMs,
         supported: true,
+        verified,
       });
 
       setProgress((prev) =>

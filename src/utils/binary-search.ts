@@ -1,5 +1,6 @@
 const START_CHUNK_BYTES = 64 * 1024 * 1024; // 64MB
 const MIN_CHUNK_BYTES = 1024; // 1KB
+const DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 
 export interface BinarySearchCallbacks {
   onWrite: (chunkSize: number, keyIndex: number) => Promise<void>;
@@ -9,6 +10,8 @@ export interface BinarySearchCallbacks {
     startTime: number
   ) => void;
   onCleanup?: () => Promise<void>;
+  /** 書き込み上限バイト数（デフォルト: 2GB） */
+  maxBytes?: number;
 }
 
 export interface BinarySearchResult {
@@ -30,8 +33,11 @@ export async function measureStorageLimit(
   let chunkSize = START_CHUNK_BYTES;
   let keyIndex = 0;
   let totalBytesWritten = 0;
+  const maxBytes = callbacks.maxBytes ?? DEFAULT_MAX_BYTES;
 
   while (chunkSize >= MIN_CHUNK_BYTES) {
+    // 安全上限に達したら停止
+    if (totalBytes >= maxBytes) break;
     try {
       await callbacks.onWrite(chunkSize, keyIndex);
       totalBytes += chunkSize;

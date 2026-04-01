@@ -12,6 +12,7 @@ import type {
 const FILE_NAME = "__benchmark_opfs";
 const START_CHUNK_BYTES = 64 * 1024 * 1024; // 64MB
 const MIN_CHUNK_BYTES = 1024; // 1KB
+const DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 
 /**
  * QuotaExceededError かどうかを判定する
@@ -35,7 +36,7 @@ function isQuotaError(err: unknown): boolean {
 /**
  * OPFS の FileSystemSyncAccessHandle を使ってバイナリサーチ書き込みを行う
  */
-async function runBenchmark(dataType: DataType) {
+async function runBenchmark(dataType: DataType, maxBytes: number) {
   const root = await navigator.storage.getDirectory();
   const fileHandle = await root.getFileHandle(FILE_NAME, { create: true });
   const handle = await fileHandle.createSyncAccessHandle();
@@ -46,6 +47,9 @@ async function runBenchmark(dataType: DataType) {
 
   try {
     while (chunkSize >= MIN_CHUNK_BYTES) {
+      // 安全上限に達したら停止
+      if (totalBytes >= maxBytes) break;
+
       try {
         const chunk = generateChunkByType(chunkSize, dataType);
         handle.write(chunk, { at: totalBytes });
@@ -67,13 +71,16 @@ async function runBenchmark(dataType: DataType) {
         self.postMessage(progress);
       } catch (err) {
         if (isQuotaError(err)) {
-          // チャンクサイズを半減して再試行
           chunkSize = Math.floor(chunkSize / 2);
         } else {
           throw err;
         }
       }
     }
+
+    // 検証: ファイルサイズが書き込み量と一致するか確認
+    const fileSize = handle.getSize();
+    const verified = fileSize >= totalBytes;
 
     const durationMs = Date.now() - startTime;
     const throughputMBps =
@@ -86,6 +93,7 @@ async function runBenchmark(dataType: DataType) {
       actualLimitBytes: totalBytes,
       throughputMBps,
       durationMs,
+      verified,
     };
     self.postMessage(complete);
   } finally {
@@ -108,7 +116,8 @@ async function cleanup() {
 self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   try {
     if (e.data.type === "start") {
-      await runBenchmark(e.data.dataType ?? "random");
+      const maxBytes = e.data.maxBytes ?? DEFAULT_MAX_BYTES;
+      await runBenchmark(e.data.dataType ?? "random", maxBytes);
     } else if (e.data.type === "cleanup") {
       await cleanup();
     }

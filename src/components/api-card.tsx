@@ -86,6 +86,20 @@ export function ApiCard({
           </div>
         </div>
       )}
+      {/* 検証結果バッジ */}
+      {result && !isRunning && result.verified !== undefined && (
+        <p
+          className={`rounded px-2 py-1 text-xs ${
+            result.verified
+              ? "bg-accent/10 text-accent"
+              : "bg-danger/10 text-danger"
+          }`}
+        >
+          {result.verified
+            ? "検証OK: 書き込み後にデータを読み返せました"
+            : "検証NG: 書き込み後にデータを読み返せませんでした"}
+        </p>
+      )}
       {/* エラーは実行中・完了後問わず常時表示 */}
       {result?.error && (
         <p className="rounded bg-danger/10 px-2 py-1 text-xs text-danger">{result.error}</p>

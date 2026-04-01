@@ -6,6 +6,7 @@ import type {
   WorkerOutMessage,
   DataType,
 } from "../types";
+import { getSafeMaxBytes } from "../utils/storage-cap";
 
 interface UseStorageTestReturn {
   result: TestResult | null;
@@ -52,6 +53,7 @@ export function useSqliteTest(): UseStorageTestReturn {
         { type: "module" }
       );
       workerRef.current = worker;
+      const maxBytes = await getSafeMaxBytes();
 
       await new Promise<void>((resolve, reject) => {
         worker.onmessage = (e: MessageEvent<WorkerOutMessage>) => {
@@ -77,6 +79,7 @@ export function useSqliteTest(): UseStorageTestReturn {
                 dataType,
                 durationMs: msg.durationMs,
                 supported: true,
+                verified: msg.verified,
               });
               setProgress((prev) =>
                 prev ? { ...prev, phase: "done" } : null
@@ -113,7 +116,7 @@ export function useSqliteTest(): UseStorageTestReturn {
           reject(new Error(e.message));
         };
 
-        const startMsg: WorkerInMessage = { type: "start", dataType };
+        const startMsg: WorkerInMessage = { type: "start", dataType, maxBytes };
         worker.postMessage(startMsg);
       });
     } catch (err) {

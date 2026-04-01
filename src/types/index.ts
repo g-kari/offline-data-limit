@@ -42,6 +42,8 @@ export interface TestResult {
   durationMs: number;
   supported: boolean;
   error?: string;
+  /** 書き込み後の検証結果（true=読み返し成功, false=失敗） */
+  verified?: boolean;
 }
 
 export interface StorageEstimate {
@@ -84,6 +86,7 @@ export type WorkerMessageType =
 export interface WorkerStartMessage {
   type: "start";
   dataType: DataType;
+  maxBytes?: number;
 }
 
 export interface WorkerCleanupMessage {
@@ -102,6 +105,7 @@ export interface WorkerCompleteMessage {
   actualLimitBytes: number;
   throughputMBps: number;
   durationMs: number;
+  verified?: boolean;
 }
 
 export interface WorkerErrorMessage {

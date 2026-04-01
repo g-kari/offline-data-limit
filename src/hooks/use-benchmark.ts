@@ -7,6 +7,7 @@ import type {
   DataType,
 } from "../types";
 import { getBrowserInfo, getStorageEstimate } from "../utils/browser-info";
+import { requestPersistence } from "../utils/storage-cap";
 import { useLocalStorageTest } from "./use-localstorage-test";
 import { useSessionStorageTest } from "./use-sessionstorage-test";
 import { useIndexedDBTest } from "./use-indexeddb-test";
@@ -151,6 +152,9 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
 
     const allResults: TestResult[] = [];
     const newResults = new Map<StorageApiId, TestResult>();
+
+    // Persistent Storage を要求（自動消去防止）
+    await requestPersistence();
 
     // テスト実行前のストレージ見積もり
     const storageEstimateBefore = await getStorageEstimate();

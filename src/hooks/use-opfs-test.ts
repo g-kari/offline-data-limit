@@ -6,6 +6,7 @@ import type {
   WorkerOutMessage,
   DataType,
 } from "../types";
+import { getSafeMaxBytes } from "../utils/storage-cap";
 
 interface UseStorageTestReturn {
   result: TestResult | null;
@@ -54,6 +55,7 @@ export function useOpfsTest(): UseStorageTestReturn {
         { type: "module" }
       );
       workerRef.current = worker;
+      const maxBytes = await getSafeMaxBytes();
 
       await new Promise<void>((resolve, reject) => {
         worker.onmessage = (e: MessageEvent<WorkerOutMessage>) => {
@@ -79,6 +81,7 @@ export function useOpfsTest(): UseStorageTestReturn {
                 dataType,
                 durationMs: msg.durationMs,
                 supported: true,
+                verified: msg.verified,
               });
               setProgress((prev) =>
                 prev ? { ...prev, phase: "done" } : null
@@ -116,7 +119,7 @@ export function useOpfsTest(): UseStorageTestReturn {
         };
 
         // 計測開始
-        const startMsg: WorkerInMessage = { type: "start", dataType };
+        const startMsg: WorkerInMessage = { type: "start", dataType, maxBytes };
         worker.postMessage(startMsg);
       });
     } catch (err) {
