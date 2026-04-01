@@ -1,3 +1,11 @@
+export type DataType = "random" | "bmp" | "text" | "json";
+
+export interface DataTypeInfo {
+  id: DataType;
+  name: string;
+  description: string;
+}
+
 export type StorageApiId =
   | "localStorage"
   | "sessionStorage"
@@ -30,6 +38,7 @@ export interface TestResult {
   actualLimitBytes: number;
   throughputMBps: number;
   reportedQuotaBytes: number | null;
+  dataType: DataType;
   durationMs: number;
   supported: boolean;
   error?: string;
@@ -60,6 +69,7 @@ export interface BenchmarkSession {
   browserInfo: BrowserInfo;
   storageEstimateBefore: StorageEstimate;
   storageEstimateAfter: StorageEstimate;
+  dataType: DataType;
   results: TestResult[];
 }
 
@@ -73,6 +83,7 @@ export type WorkerMessageType =
 
 export interface WorkerStartMessage {
   type: "start";
+  dataType: DataType;
 }
 
 export interface WorkerCleanupMessage {

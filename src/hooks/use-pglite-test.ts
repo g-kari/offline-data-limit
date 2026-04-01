@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
-import type { TestResult, TestProgress } from "../types";
+import type { TestResult, TestProgress, DataType } from "../types";
 import { measureStorageLimit } from "../utils/binary-search";
-import { generateChunk } from "../utils/chunk-generator";
+import { generateChunkByType } from "../utils/chunk-generator";
 
 const IDB_NAME = "/pglite/benchmark-pglite";
 
@@ -9,7 +9,7 @@ interface UseStorageTestReturn {
   result: TestResult | null;
   progress: TestProgress | null;
   isRunning: boolean;
-  run: () => Promise<void>;
+  run: (dataType?: DataType) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
@@ -44,7 +44,7 @@ export function usePgliteTest(): UseStorageTestReturn {
     });
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (dataType: DataType = "random") => {
     if (isRunning) return;
     setIsRunning(true);
     setResult(null);
@@ -65,7 +65,7 @@ export function usePgliteTest(): UseStorageTestReturn {
 
       const searchResult = await measureStorageLimit({
         onWrite: async (chunkSize, _keyIndex) => {
-          const chunk = generateChunk(chunkSize);
+          const chunk = generateChunkByType(chunkSize, dataType);
           const hexStr = "\\x" + toHex(chunk);
           await pg.exec(`INSERT INTO data (chunk) VALUES ('${hexStr}')`);
         },
@@ -87,6 +87,7 @@ export function usePgliteTest(): UseStorageTestReturn {
         actualLimitBytes: searchResult.actualLimitBytes,
         throughputMBps: searchResult.throughputMBps,
         reportedQuotaBytes: null,
+        dataType,
         durationMs: searchResult.durationMs,
         supported: true,
       });
@@ -106,6 +107,7 @@ export function usePgliteTest(): UseStorageTestReturn {
         actualLimitBytes: 0,
         throughputMBps: 0,
         reportedQuotaBytes: null,
+        dataType,
         durationMs: 0,
         supported: true,
         error: message,

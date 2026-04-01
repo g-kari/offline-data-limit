@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 
-import { generateChunk } from "../utils/chunk-generator";
+import { generateChunkByType } from "../utils/chunk-generator";
 import type {
+  DataType,
   WorkerInMessage,
   WorkerProgressMessage,
   WorkerCompleteMessage,
@@ -79,7 +80,7 @@ async function initSQLite(): Promise<{ api: SQLiteModule; db: SQLiteDB }> {
 /**
  * SQLite にBLOBデータをINSERTしながら上限を計測する
  */
-async function runBenchmark() {
+async function runBenchmark(dataType: DataType) {
   const init = await initSQLite();
   sqliteModule = init.api;
   db = init.db;
@@ -96,7 +97,7 @@ async function runBenchmark() {
 
   while (chunkSize >= MIN_CHUNK_BYTES) {
     try {
-      const chunk = generateChunk(chunkSize);
+      const chunk = generateChunkByType(chunkSize, dataType);
       await sqliteModule.run(
         db,
         "INSERT INTO bench_data (chunk) VALUES (?)",
@@ -169,7 +170,7 @@ async function cleanup() {
 self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   try {
     if (e.data.type === "start") {
-      await runBenchmark();
+      await runBenchmark(e.data.dataType ?? "random");
     } else if (e.data.type === "cleanup") {
       await cleanup();
     }

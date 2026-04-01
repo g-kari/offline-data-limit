@@ -3,6 +3,7 @@ import type {
   StorageApiId,
   TestResult,
   BenchmarkSession,
+  DataType,
 } from "../types";
 import { getBrowserInfo, getStorageEstimate } from "../utils/browser-info";
 import { useLocalStorageTest } from "./use-localstorage-test";
@@ -80,7 +81,7 @@ async function loadHistory(): Promise<BenchmarkSession[]> {
 }
 
 /** 全テストを逐次実行するオーケストレーション hook */
-export function useBenchmark(): UseBenchmarkReturn {
+export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn {
   const [session, setSession] = useState<BenchmarkSession | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [currentApiId, setCurrentApiId] = useState<StorageApiId | null>(
@@ -125,7 +126,7 @@ export function useBenchmark(): UseBenchmarkReturn {
     // 逐次実行する全テスト（共有クォータプール干渉防止のため並列不可）
     const tests: {
       id: StorageApiId;
-      run: () => Promise<void>;
+      run: (dataType?: DataType) => Promise<void>;
       getResult: () => TestResult | null;
     }[] = [
       {
@@ -165,7 +166,7 @@ export function useBenchmark(): UseBenchmarkReturn {
       setCurrentApiId(test.id);
 
       try {
-        await test.run();
+        await test.run(dataType);
       } catch {
         // 個別テストのエラーは各hookがresultに記録する
       }
@@ -191,6 +192,7 @@ export function useBenchmark(): UseBenchmarkReturn {
       browserInfo,
       storageEstimateBefore,
       storageEstimateAfter,
+      dataType,
       results: allResults,
     };
 
@@ -209,6 +211,7 @@ export function useBenchmark(): UseBenchmarkReturn {
     setIsRunning(false);
   }, [
     isRunning,
+    dataType,
     localStorage,
     sessionStorage,
     indexedDB,

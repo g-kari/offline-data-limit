@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useBenchmark } from "./hooks/use-benchmark";
-import type { StorageApiInfo } from "./types";
+import type { StorageApiInfo, DataType } from "./types";
 import { Header } from "./components/header";
 import { PreTestPanel } from "./components/pre-test-panel";
 import { TestRunner } from "./components/test-runner";
@@ -59,8 +60,9 @@ const API_INFO: StorageApiInfo[] = [
 ];
 
 export function App() {
+  const [dataType, setDataType] = useState<DataType>("random");
   const { session, isRunning, currentApiId, runAll, results, history } =
-    useBenchmark();
+    useBenchmark(dataType);
 
   const browserInfo = session?.browserInfo ?? null;
   const estimateBefore = session?.storageEstimateBefore ?? null;
@@ -99,6 +101,8 @@ export function App() {
         apiCards={apiCards}
         isRunning={isRunning}
         onRunAll={runAll}
+        dataType={dataType}
+        onDataTypeChange={setDataType}
       />
       {results.size > 0 && (
         <ResultsDashboard

@@ -4,13 +4,14 @@ import type {
   TestProgress,
   WorkerInMessage,
   WorkerOutMessage,
+  DataType,
 } from "../types";
 
 interface UseStorageTestReturn {
   result: TestResult | null;
   progress: TestProgress | null;
   isRunning: boolean;
-  run: () => Promise<void>;
+  run: (dataType?: DataType) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
@@ -39,7 +40,7 @@ export function useSqliteTest(): UseStorageTestReturn {
     }
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (dataType: DataType = "random") => {
     if (isRunning) return;
     setIsRunning(true);
     setResult(null);
@@ -73,6 +74,7 @@ export function useSqliteTest(): UseStorageTestReturn {
                 actualLimitBytes: msg.actualLimitBytes,
                 throughputMBps: msg.throughputMBps,
                 reportedQuotaBytes: null,
+                dataType,
                 durationMs: msg.durationMs,
                 supported: true,
               });
@@ -90,6 +92,7 @@ export function useSqliteTest(): UseStorageTestReturn {
                 actualLimitBytes: 0,
                 throughputMBps: 0,
                 reportedQuotaBytes: null,
+                dataType,
                 durationMs: 0,
                 supported: true,
                 error: msg.message,
@@ -110,7 +113,7 @@ export function useSqliteTest(): UseStorageTestReturn {
           reject(new Error(e.message));
         };
 
-        const startMsg: WorkerInMessage = { type: "start" };
+        const startMsg: WorkerInMessage = { type: "start", dataType };
         worker.postMessage(startMsg);
       });
     } catch (err) {
@@ -122,6 +125,7 @@ export function useSqliteTest(): UseStorageTestReturn {
           actualLimitBytes: 0,
           throughputMBps: 0,
           reportedQuotaBytes: null,
+          dataType,
           durationMs: 0,
           supported: false,
           error: message,

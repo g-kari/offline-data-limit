@@ -1,4 +1,12 @@
-import type { BenchmarkSession } from "../types";
+import type { BenchmarkSession, DataType } from "../types";
+
+/** データ種別のラベル表示用マップ */
+const DATA_TYPE_LABELS: Record<DataType | string, string> = {
+  random: "ランダム",
+  bmp: "画像 (BMP)",
+  text: "テキスト",
+  json: "JSON",
+};
 import { detectBrowserName } from "../utils/browser-info";
 import { formatBytes } from "../utils/format";
 
@@ -43,6 +51,9 @@ export function ResultsHistory({ history }: Props) {
                 </span>
                 <span className="rounded-sm bg-surface px-2 py-0.5 text-xs">
                   {detectBrowserName(session.browserInfo.userAgent)}
+                </span>
+                <span className="rounded-sm bg-surface px-2 py-0.5 text-xs">
+                  {DATA_TYPE_LABELS[session.dataType ?? "random"] ?? "ランダム"}
                 </span>
               </div>
               <span className="font-medium">

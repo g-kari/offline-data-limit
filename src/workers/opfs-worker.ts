@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 
-import { generateChunk } from "../utils/chunk-generator";
+import { generateChunkByType } from "../utils/chunk-generator";
 import type {
+  DataType,
   WorkerInMessage,
   WorkerProgressMessage,
   WorkerCompleteMessage,
@@ -34,7 +35,7 @@ function isQuotaError(err: unknown): boolean {
 /**
  * OPFS の FileSystemSyncAccessHandle を使ってバイナリサーチ書き込みを行う
  */
-async function runBenchmark() {
+async function runBenchmark(dataType: DataType) {
   const root = await navigator.storage.getDirectory();
   const fileHandle = await root.getFileHandle(FILE_NAME, { create: true });
   const handle = await fileHandle.createSyncAccessHandle();
@@ -46,7 +47,7 @@ async function runBenchmark() {
   try {
     while (chunkSize >= MIN_CHUNK_BYTES) {
       try {
-        const chunk = generateChunk(chunkSize);
+        const chunk = generateChunkByType(chunkSize, dataType);
         handle.write(chunk, { at: totalBytes });
         handle.flush();
         totalBytes += chunkSize;
@@ -107,7 +108,7 @@ async function cleanup() {
 self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   try {
     if (e.data.type === "start") {
-      await runBenchmark();
+      await runBenchmark(e.data.dataType ?? "random");
     } else if (e.data.type === "cleanup") {
       await cleanup();
     }

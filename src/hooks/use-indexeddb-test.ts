@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
-import type { TestResult, TestProgress } from "../types";
+import type { TestResult, TestProgress, DataType } from "../types";
 import { measureStorageLimit } from "../utils/binary-search";
-import { generateChunk } from "../utils/chunk-generator";
+import { generateChunkByType } from "../utils/chunk-generator";
 
 const DB_NAME = "__benchmark_idb";
 const STORE_NAME = "data";
@@ -10,7 +10,7 @@ interface UseStorageTestReturn {
   result: TestResult | null;
   progress: TestProgress | null;
   isRunning: boolean;
-  run: () => Promise<void>;
+  run: (dataType?: DataType) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
@@ -56,7 +56,7 @@ export function useIndexedDBTest(): UseStorageTestReturn {
     });
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (dataType: DataType = "random") => {
     if (isRunning) return;
     setIsRunning(true);
     setResult(null);
@@ -70,7 +70,7 @@ export function useIndexedDBTest(): UseStorageTestReturn {
 
       const searchResult = await measureStorageLimit({
         onWrite: async (chunkSize, _keyIndex) => {
-          const chunk = generateChunk(chunkSize);
+          const chunk = generateChunkByType(chunkSize, dataType);
           await writeChunk(db!, chunk);
         },
         onProgress: (bytesWritten, currentChunkSize, startTime) => {
@@ -94,6 +94,7 @@ export function useIndexedDBTest(): UseStorageTestReturn {
         actualLimitBytes: searchResult.actualLimitBytes,
         throughputMBps: searchResult.throughputMBps,
         reportedQuotaBytes: null,
+        dataType,
         durationMs: searchResult.durationMs,
         supported: true,
       });
@@ -114,6 +115,7 @@ export function useIndexedDBTest(): UseStorageTestReturn {
         actualLimitBytes: 0,
         throughputMBps: 0,
         reportedQuotaBytes: null,
+        dataType,
         durationMs: 0,
         supported:
           typeof window !== "undefined" && "indexedDB" in window,

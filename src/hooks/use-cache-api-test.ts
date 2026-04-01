@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
-import type { TestResult, TestProgress } from "../types";
+import type { TestResult, TestProgress, DataType } from "../types";
 import { measureStorageLimit } from "../utils/binary-search";
-import { generateChunk } from "../utils/chunk-generator";
+import { generateChunkByType } from "../utils/chunk-generator";
 
 const CACHE_NAME = "__benchmark_cache";
 
@@ -9,7 +9,7 @@ interface UseStorageTestReturn {
   result: TestResult | null;
   progress: TestProgress | null;
   isRunning: boolean;
-  run: () => Promise<void>;
+  run: (dataType?: DataType) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
@@ -23,7 +23,7 @@ export function useCacheApiTest(): UseStorageTestReturn {
     await caches.delete(CACHE_NAME);
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (dataType: DataType = "random") => {
     if (isRunning) return;
     setIsRunning(true);
     setResult(null);
@@ -35,7 +35,7 @@ export function useCacheApiTest(): UseStorageTestReturn {
 
       const searchResult = await measureStorageLimit({
         onWrite: async (chunkSize, keyIndex) => {
-          const chunk = generateChunk(chunkSize);
+          const chunk = generateChunkByType(chunkSize, dataType);
           // Blob は ArrayBuffer を要求するため buffer を渡す
           const blob = new Blob([chunk.buffer as ArrayBuffer]);
           const response = new Response(blob);
@@ -59,6 +59,7 @@ export function useCacheApiTest(): UseStorageTestReturn {
         actualLimitBytes: searchResult.actualLimitBytes,
         throughputMBps: searchResult.throughputMBps,
         reportedQuotaBytes: null,
+        dataType,
         durationMs: searchResult.durationMs,
         supported: true,
       });
@@ -78,6 +79,7 @@ export function useCacheApiTest(): UseStorageTestReturn {
         actualLimitBytes: 0,
         throughputMBps: 0,
         reportedQuotaBytes: null,
+        dataType,
         durationMs: 0,
         supported:
           typeof window !== "undefined" && "caches" in window,

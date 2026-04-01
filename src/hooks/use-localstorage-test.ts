@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
-import type { TestResult, TestProgress } from "../types";
+import type { TestResult, TestProgress, DataType } from "../types";
 import { measureStorageLimit } from "../utils/binary-search";
-import { generateStringChunk } from "../utils/chunk-generator";
+import { generateStringChunkByType } from "../utils/chunk-generator";
 
 const KEY_PREFIX = "__bench_ls_";
 const START_CHUNK = 1024 * 1024; // 1MB（localStorage向け）
@@ -10,7 +10,7 @@ interface UseStorageTestReturn {
   result: TestResult | null;
   progress: TestProgress | null;
   isRunning: boolean;
-  run: () => Promise<void>;
+  run: (dataType?: DataType) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
@@ -33,7 +33,7 @@ export function useLocalStorageTest(): UseStorageTestReturn {
     }
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (dataType: DataType = "random") => {
     if (isRunning) return;
     setIsRunning(true);
     setResult(null);
@@ -47,7 +47,7 @@ export function useLocalStorageTest(): UseStorageTestReturn {
         onWrite: async (chunkSize, keyIndex) => {
           // localStorage は同期APIだが、バイナリサーチの都合上asyncで包む
           const actualSize = Math.min(chunkSize, START_CHUNK);
-          const data = generateStringChunk(actualSize);
+          const data = generateStringChunkByType(actualSize, dataType);
           localStorage.setItem(`${KEY_PREFIX}${keyIndex}`, data);
         },
         onProgress: (bytesWritten, currentChunkSize, startTime) => {
@@ -68,6 +68,7 @@ export function useLocalStorageTest(): UseStorageTestReturn {
         actualLimitBytes: searchResult.actualLimitBytes,
         throughputMBps: searchResult.throughputMBps,
         reportedQuotaBytes: null,
+        dataType,
         durationMs: searchResult.durationMs,
         supported: true,
       });
@@ -87,6 +88,7 @@ export function useLocalStorageTest(): UseStorageTestReturn {
         actualLimitBytes: 0,
         throughputMBps: 0,
         reportedQuotaBytes: null,
+        dataType,
         durationMs: 0,
         supported: typeof window !== "undefined" && "localStorage" in window,
         error: message,
