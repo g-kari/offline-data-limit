@@ -40,7 +40,10 @@ type SQLiteDB = number;
 interface SQLiteModule {
   open_v2(filename: string, flags?: number, vfs?: string): Promise<SQLiteDB>;
   exec(db: SQLiteDB, sql: string): Promise<void>;
-  run(db: SQLiteDB, sql: string, bindings?: unknown[]): Promise<void>;
+  statements(db: SQLiteDB, sql: string): AsyncIterable<number>;
+  bind_collection(stmt: number, bindings: unknown[]): number;
+  step(stmt: number): Promise<number>;
+  finalize(stmt: number): Promise<number>;
   close(db: SQLiteDB): Promise<void>;
   vfs_register(vfs: unknown, makeDefault?: boolean): void;
 }
@@ -98,11 +101,14 @@ async function runBenchmark(dataType: DataType, maxBytes: number) {
 
     try {
       const chunk = generateChunkByType(chunkSize, dataType);
-      await sqliteModule.run(
+      // statements + bind_collection + step でBLOBをINSERTする
+      for await (const stmt of sqliteModule.statements(
         db,
-        "INSERT INTO bench_data (chunk) VALUES (?)",
-        [chunk]
-      );
+        "INSERT INTO bench_data (chunk) VALUES (?)"
+      )) {
+        sqliteModule.bind_collection(stmt, [chunk]);
+        await sqliteModule.step(stmt);
+      }
       totalBytes += chunkSize;
 
       const elapsed = Date.now() - startTime;

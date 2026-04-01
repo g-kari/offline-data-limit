@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useBenchmark } from "./hooks/use-benchmark";
-import type { StorageApiInfo, DataType } from "./types";
+import type { StorageApiInfo, StorageEstimate, BrowserInfo, DataType } from "./types";
+import { getBrowserInfo, getStorageEstimate } from "./utils/browser-info";
 import { Header } from "./components/header";
 import { PreTestPanel } from "./components/pre-test-panel";
 import { TestRunner } from "./components/test-runner";
@@ -64,8 +65,20 @@ export function App() {
   const { session, isRunning, currentApiId, currentProgress, runAll, results, history } =
     useBenchmark(dataType);
 
-  const browserInfo = session?.browserInfo ?? null;
-  const estimateBefore = session?.storageEstimateBefore ?? null;
+  // ページ読み込み時にストレージ情報とブラウザ情報を取得
+  const [initialEstimate, setInitialEstimate] = useState<StorageEstimate | null>(null);
+  const [initialBrowserInfo, setInitialBrowserInfo] = useState<BrowserInfo | null>(null);
+  const initLoadedRef = useRef(false);
+  useEffect(() => {
+    if (initLoadedRef.current) return;
+    initLoadedRef.current = true;
+    getStorageEstimate().then(setInitialEstimate).catch(() => {});
+    getBrowserInfo().then(setInitialBrowserInfo).catch(() => {});
+  }, []);
+
+  // セッション完了後はセッションの値を優先、未完了時は初期取得値を使用
+  const browserInfo = session?.browserInfo ?? initialBrowserInfo;
+  const estimateBefore = session?.storageEstimateBefore ?? initialEstimate;
   const estimateAfter = session?.storageEstimateAfter ?? null;
 
   const apiCards = API_INFO.map((api) => ({
