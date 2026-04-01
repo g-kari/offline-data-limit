@@ -42,21 +42,28 @@ export async function checkIndexedDB(): Promise<PersistenceResult> {
       req.onerror = () => reject(req.error);
     });
 
-    const count = await new Promise<number>((resolve, reject) => {
+    const bytesRemaining = await new Promise<number>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, "readonly");
       const store = tx.objectStore(IDB_STORE);
-      const req = store.count();
-      req.onsuccess = () => resolve(req.result);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const records = req.result as unknown[];
+        let total = 0;
+        for (const r of records) {
+          if (r instanceof ArrayBuffer) total += r.byteLength;
+          else if (ArrayBuffer.isView(r)) total += r.byteLength;
+        }
+        resolve(total);
+      };
       req.onerror = () => reject(req.error);
     });
     db.close();
 
-    // レコード数のみ（正確なバイト数は取得コストが高いため概算不可）
     return {
       apiId: "indexedDB",
-      bytesRemaining: count > 0 ? -1 : 0, // -1 = "データあり、サイズ不明"
+      bytesRemaining,
       originalBytes: 0,
-      persisted: count > 0,
+      persisted: bytesRemaining > 0,
       checkedAt: Date.now(),
     };
   } catch {
@@ -145,8 +152,15 @@ export async function checkSqlite(): Promise<PersistenceResult> {
         found = true;
       } else if (name.includes("benchmark") && handle.kind === "directory") {
         found = true;
-        // ディレクトリ内のファイルサイズ合計は取得コストが高いためスキップ
-        totalSize = -1;
+        // ディレクトリ内のファイルサイズを再帰的に合計
+        for await (const [, childHandle] of handle as unknown as AsyncIterable<
+          [string, FileSystemHandle]
+        >) {
+          if (childHandle.kind === "file") {
+            const file = await (childHandle as FileSystemFileHandle).getFile();
+            totalSize += file.size;
+          }
+        }
       }
     }
     return {
@@ -176,13 +190,43 @@ export async function checkPglite(): Promise<PersistenceResult> {
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
-    const hasStores = db.objectStoreNames.length > 0;
+    const storeNames = Array.from(db.objectStoreNames);
+    if (storeNames.length === 0) {
+      db.close();
+      return {
+        apiId: "pglite",
+        bytesRemaining: 0,
+        originalBytes: 0,
+        persisted: false,
+        checkedAt: Date.now(),
+      };
+    }
+    // 全ストアのバイナリレコードサイズを合計して推測値とする
+    let totalSize = 0;
+    for (const storeName of storeNames) {
+      totalSize += await new Promise<number>((resolve) => {
+        const tx = db.transaction(storeName, "readonly");
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const records = req.result as unknown[];
+          let size = 0;
+          for (const r of records) {
+            if (r instanceof ArrayBuffer) size += r.byteLength;
+            else if (ArrayBuffer.isView(r)) size += r.byteLength;
+            else size += JSON.stringify(r).length;
+          }
+          resolve(size);
+        };
+        req.onerror = () => resolve(0);
+      });
+    }
     db.close();
     return {
       apiId: "pglite",
-      bytesRemaining: hasStores ? -1 : 0,
+      bytesRemaining: totalSize,
       originalBytes: 0,
-      persisted: hasStores,
+      persisted: totalSize > 0,
       checkedAt: Date.now(),
     };
   } catch {
