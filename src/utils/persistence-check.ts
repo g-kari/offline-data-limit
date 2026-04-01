@@ -42,28 +42,19 @@ export async function checkIndexedDB(): Promise<PersistenceResult> {
       req.onerror = () => reject(req.error);
     });
 
-    const bytesRemaining = await new Promise<number>((resolve, reject) => {
+    const count = await new Promise<number>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, "readonly");
-      const store = tx.objectStore(IDB_STORE);
-      const req = store.getAll();
-      req.onsuccess = () => {
-        const records = req.result as unknown[];
-        let total = 0;
-        for (const r of records) {
-          if (r instanceof ArrayBuffer) total += r.byteLength;
-          else if (ArrayBuffer.isView(r)) total += r.byteLength;
-        }
-        resolve(total);
-      };
+      const req = tx.objectStore(IDB_STORE).count();
+      req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
     db.close();
 
     return {
       apiId: "indexedDB",
-      bytesRemaining,
+      bytesRemaining: count > 0 ? -1 : 0, // サイズはデータ詳細ページで確認
       originalBytes: 0,
-      persisted: bytesRemaining > 0,
+      persisted: count > 0,
       checkedAt: Date.now(),
     };
   } catch {
@@ -201,32 +192,28 @@ export async function checkPglite(): Promise<PersistenceResult> {
         checkedAt: Date.now(),
       };
     }
-    // 全ストアのバイナリレコードサイズを合計して推測値とする
-    let totalSize = 0;
-    for (const storeName of storeNames) {
-      totalSize += await new Promise<number>((resolve) => {
+    // count() のみで存在確認（getAll() は全件読み込みになり大容量時に著しく遅いため使わない）
+    const totalCount = await new Promise<number>((resolve) => {
+      let remaining = storeNames.length;
+      let count = 0;
+      for (const storeName of storeNames) {
         const tx = db.transaction(storeName, "readonly");
-        const store = tx.objectStore(storeName);
-        const req = store.getAll();
+        const req = tx.objectStore(storeName).count();
         req.onsuccess = () => {
-          const records = req.result as unknown[];
-          let size = 0;
-          for (const r of records) {
-            if (r instanceof ArrayBuffer) size += r.byteLength;
-            else if (ArrayBuffer.isView(r)) size += r.byteLength;
-            else size += JSON.stringify(r).length;
-          }
-          resolve(size);
+          count += req.result;
+          if (--remaining === 0) resolve(count);
         };
-        req.onerror = () => resolve(0);
-      });
-    }
+        req.onerror = () => {
+          if (--remaining === 0) resolve(count);
+        };
+      }
+    });
     db.close();
     return {
       apiId: "pglite",
-      bytesRemaining: totalSize,
+      bytesRemaining: totalCount > 0 ? -1 : 0, // サイズはデータ詳細ページで確認
       originalBytes: 0,
-      persisted: totalSize > 0,
+      persisted: totalCount > 0,
       checkedAt: Date.now(),
     };
   } catch {
