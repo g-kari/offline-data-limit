@@ -21,7 +21,12 @@ export function generateChunk(sizeBytes: number): Uint8Array {
  */
 export function generateStringChunk(sizeBytes: number): string {
   const bytes = generateChunk(Math.ceil(sizeBytes * 0.75));
-  return btoa(String.fromCharCode(...bytes)).substring(0, sizeBytes);
+  // スプレッド展開はスタックサイズ制限に引っかかるためループで変換する
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).substring(0, sizeBytes);
 }
 
 /**
