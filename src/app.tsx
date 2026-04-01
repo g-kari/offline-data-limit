@@ -61,7 +61,7 @@ const API_INFO: StorageApiInfo[] = [
 
 export function App() {
   const [dataType, setDataType] = useState<DataType>("random");
-  const { session, isRunning, currentApiId, runAll, results, history } =
+  const { session, isRunning, currentApiId, currentProgress, runAll, results, history } =
     useBenchmark(dataType);
 
   const browserInfo = session?.browserInfo ?? null;
@@ -74,17 +74,7 @@ export function App() {
     description: api.description,
     supported: true,
     result: results.get(api.id) ?? null,
-    // 現在実行中のAPIにはプログレス表示（progress詳細は個別hookから取得できないため簡易表示）
-    progress:
-      currentApiId === api.id
-        ? {
-            apiId: api.id,
-            bytesWritten: 0,
-            currentChunkSize: 0,
-            throughputMBps: 0,
-            phase: "writing" as const,
-          }
-        : null,
+    progress: currentApiId === api.id ? currentProgress : null,
     isRunning: currentApiId === api.id,
     // 全テスト実行のみサポート（個別実行は現在の実装では非対応）
     onRun: runAll,

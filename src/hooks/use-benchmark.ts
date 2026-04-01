@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, type MutableRefObject } from "react";
 import type {
   StorageApiId,
   TestResult,
+  TestProgress,
   BenchmarkSession,
   DataType,
 } from "../types";
@@ -21,6 +22,7 @@ interface UseBenchmarkReturn {
   session: BenchmarkSession | null;
   isRunning: boolean;
   currentApiId: StorageApiId | null;
+  currentProgress: TestProgress | null;
   runAll: () => Promise<void>;
   results: Map<StorageApiId, TestResult>;
   history: BenchmarkSession[];
@@ -101,6 +103,37 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
   const sqlite = useSqliteTest();
   const pglite = usePgliteTest();
 
+  // クロージャ問題回避: 最新のresult/progressをrefで追跡
+  const localStorageResultRef = useRef(localStorage.result);
+  localStorageResultRef.current = localStorage.result;
+  const sessionStorageResultRef = useRef(sessionStorage.result);
+  sessionStorageResultRef.current = sessionStorage.result;
+  const indexedDBResultRef = useRef(indexedDB.result);
+  indexedDBResultRef.current = indexedDB.result;
+  const cacheApiResultRef = useRef(cacheApi.result);
+  cacheApiResultRef.current = cacheApi.result;
+  const opfsResultRef = useRef(opfs.result);
+  opfsResultRef.current = opfs.result;
+  const sqliteResultRef = useRef(sqlite.result);
+  sqliteResultRef.current = sqlite.result;
+  const pgliteResultRef = useRef(pglite.result);
+  pgliteResultRef.current = pglite.result;
+
+  const localStorageProgressRef = useRef(localStorage.progress);
+  localStorageProgressRef.current = localStorage.progress;
+  const sessionStorageProgressRef = useRef(sessionStorage.progress);
+  sessionStorageProgressRef.current = sessionStorage.progress;
+  const indexedDBProgressRef = useRef(indexedDB.progress);
+  indexedDBProgressRef.current = indexedDB.progress;
+  const cacheApiProgressRef = useRef(cacheApi.progress);
+  cacheApiProgressRef.current = cacheApi.progress;
+  const opfsProgressRef = useRef(opfs.progress);
+  opfsProgressRef.current = opfs.progress;
+  const sqliteProgressRef = useRef(sqlite.progress);
+  sqliteProgressRef.current = sqlite.progress;
+  const pgliteProgressRef = useRef(pglite.progress);
+  pgliteProgressRef.current = pglite.progress;
+
   // 初回マウント時に履歴を読み込む
   const historyLoadedRef = useRef(false);
   if (!historyLoadedRef.current) {
@@ -132,33 +165,33 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
       {
         id: "localStorage",
         run: localStorage.run,
-        getResult: () => localStorage.result,
+        getResult: () => localStorageResultRef.current,
       },
       {
         id: "sessionStorage",
         run: sessionStorage.run,
-        getResult: () => sessionStorage.result,
+        getResult: () => sessionStorageResultRef.current,
       },
       {
         id: "indexedDB",
         run: indexedDB.run,
-        getResult: () => indexedDB.result,
+        getResult: () => indexedDBResultRef.current,
       },
       {
         id: "cacheApi",
         run: cacheApi.run,
-        getResult: () => cacheApi.result,
+        getResult: () => cacheApiResultRef.current,
       },
-      { id: "opfs", run: opfs.run, getResult: () => opfs.result },
+      { id: "opfs", run: opfs.run, getResult: () => opfsResultRef.current },
       {
         id: "sqlite",
         run: sqlite.run,
-        getResult: () => sqlite.result,
+        getResult: () => sqliteResultRef.current,
       },
       {
         id: "pglite",
         run: pglite.run,
-        getResult: () => pglite.result,
+        getResult: () => pgliteResultRef.current,
       },
     ];
 
@@ -171,9 +204,9 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
         // 個別テストのエラーは各hookがresultに記録する
       }
 
-      // run完了後、resultを取得（stateから直接取得は非同期のため待機が必要）
-      // hookの結果はrun完了後にstate更新されるが、同期的に取得するために少し待つ
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // run()がawaitで完了した時点でhook内のsetResult/setIsRunningは呼ばれているが、
+      // Reactのstateがrefへreflectされるまで1フレーム待つ
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       const testResult = test.getResult();
       if (testResult) {
@@ -221,5 +254,17 @@ export function useBenchmark(dataType: DataType = "random"): UseBenchmarkReturn 
     pglite,
   ]);
 
-  return { session, isRunning, currentApiId, runAll, results, history };
+  // 現在実行中APIのプログレスをrefから取得
+  const progressRefMap: Record<StorageApiId, MutableRefObject<TestProgress | null>> = {
+    localStorage: localStorageProgressRef,
+    sessionStorage: sessionStorageProgressRef,
+    indexedDB: indexedDBProgressRef,
+    cacheApi: cacheApiProgressRef,
+    opfs: opfsProgressRef,
+    sqlite: sqliteProgressRef,
+    pglite: pgliteProgressRef,
+  };
+  const currentProgress = currentApiId ? progressRefMap[currentApiId].current : null;
+
+  return { session, isRunning, currentApiId, currentProgress, runAll, results, history };
 }

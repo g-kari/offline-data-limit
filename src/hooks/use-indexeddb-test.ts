@@ -38,6 +38,12 @@ function writeChunk(db: IDBDatabase, data: Uint8Array): Promise<void> {
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
     tx.onerror = () => reject(tx.error);
+    // クォータ超過時は tx.onabort が発火しPromiseがハングするため明示的にrejectする
+    tx.onabort = () =>
+      reject(
+        tx.error ??
+          new DOMException("Transaction aborted", "QuotaExceededError")
+      );
   });
 }
 

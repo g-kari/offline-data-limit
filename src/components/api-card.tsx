@@ -84,10 +84,11 @@ export function ApiCard({
             <p className="text-muted text-xs">所要時間</p>
             <p className="font-medium">{formatDuration(result.durationMs)}</p>
           </div>
-          {result.error && (
-            <p className="col-span-3 text-xs text-danger">{result.error}</p>
-          )}
         </div>
+      )}
+      {/* エラーは実行中・完了後問わず常時表示 */}
+      {result?.error && (
+        <p className="rounded bg-danger/10 px-2 py-1 text-xs text-danger">{result.error}</p>
       )}
 
       {/* 実行ボタン */}
