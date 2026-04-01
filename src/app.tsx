@@ -23,16 +23,13 @@ function useHashRouter() {
   return hash;
 }
 
-export function App() {
-  const hash = useHashRouter();
-  if (hash === "#/inspect") return <DataInspectorPage />;
+function MainPage() {
   const [dataType, setDataType] = useState<DataType>("random");
   const [retainData, setRetainData] = useState(false);
   const { session, isRunning, currentApiId, currentProgress, runAll, runSingle, results, history } =
     useBenchmark(dataType);
   const persistence = usePersistenceCheck();
 
-  // ページ読み込み時にストレージ情報とブラウザ情報を取得
   const [initialEstimate, setInitialEstimate] = useState<StorageEstimate | null>(null);
   const [initialBrowserInfo, setInitialBrowserInfo] = useState<BrowserInfo | null>(null);
   const initLoadedRef = useRef(false);
@@ -47,7 +44,6 @@ export function App() {
       .catch(() => {});
   }, []);
 
-  // セッション完了後はセッションの値を優先、未完了時は初期取得値を使用
   const browserInfo = session?.browserInfo ?? initialBrowserInfo;
   const estimateBefore = session?.storageEstimateBefore ?? initialEstimate;
   const estimateAfter = session?.storageEstimateAfter ?? null;
@@ -106,4 +102,9 @@ export function App() {
       <ResultsHistory history={history} />
     </div>
   );
+}
+
+export function App() {
+  const hash = useHashRouter();
+  return hash === "#/inspect" ? <DataInspectorPage /> : <MainPage />;
 }
