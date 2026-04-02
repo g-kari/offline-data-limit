@@ -1,6 +1,7 @@
 import type { StorageApiId, TestResult, TestProgress } from "../types";
 import { formatBytes, formatThroughput, formatDuration } from "../utils/format";
 import { useDisclosure } from "../hooks/use-disclosure";
+import { RichText } from "./glossary-term";
 
 export interface ApiCardProps {
   apiId: StorageApiId;
@@ -66,7 +67,7 @@ export function ApiCard({
 
       {isExpanded && (
         <div className="border-t border-border/50 pt-3 space-y-3 text-sm">
-          <p className="text-muted leading-relaxed">{details}</p>
+          <RichText text={details} className="text-muted leading-relaxed" />
           <div>
             <p className="text-xs font-medium mb-1">サンプルコード</p>
             <pre className="bg-surface rounded p-3 overflow-x-auto text-xs leading-relaxed whitespace-pre">

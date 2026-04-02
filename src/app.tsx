@@ -13,6 +13,7 @@ import { ResultsHistory } from "./components/results-history";
 import { PersistencePanel } from "./components/persistence-panel";
 import { DataInspectorPage } from "./pages/data-inspector";
 import { SimulationPage } from "./pages/simulation";
+import { GlossaryPage } from "./pages/glossary";
 
 function useHashRouter() {
   const [hash, setHash] = useState(window.location.hash);
@@ -109,5 +110,9 @@ export function App() {
   const hash = useHashRouter();
   if (hash === "#/inspect") return <DataInspectorPage />;
   if (hash === "#/simulation") return <SimulationPage />;
+  if (hash.startsWith("#/glossary")) {
+    const termId = hash.startsWith("#/glossary/") ? hash.slice("#/glossary/".length) : null;
+    return <GlossaryPage initialTermId={termId} />;
+  }
   return <MainPage />;
 }

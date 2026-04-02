@@ -25,6 +25,9 @@ export function Header({ browserInfo }: Props) {
     <header className="flex items-center justify-between border-b border-border pb-4 mb-6">
       <h1 className="text-2xl font-bold tracking-tight">オフラインストレージ限度計測</h1>
       <div className="flex items-center gap-3 text-sm">
+        <a href="#/glossary" className="text-sm text-muted hover:text-current transition-colors">
+          単語集
+        </a>
         <a
           href="https://github.com/g-kari/offline-data-limit"
           target="_blank"
