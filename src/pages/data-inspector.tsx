@@ -100,7 +100,7 @@ function DataTable({
               <tr className="border-b border-border text-left text-muted">
                 <th className="pb-2 pr-4 font-medium">#</th>
                 <th className="pb-2 pr-4 font-medium">サイズ</th>
-                <th className="pb-2 font-medium">先頭32バイト（hex）</th>
+                <th className="pb-2 font-medium">先頭32バイト（hex）/ プレビュー</th>
               </tr>
             </thead>
             <tbody>
@@ -108,7 +108,17 @@ function DataTable({
                 <tr key={r.index} className="border-b border-border/40">
                   <td className="py-2 pr-4">{r.index}</td>
                   <td className="py-2 pr-4">{formatBytes(r.byteLength)}</td>
-                  <td className="py-2 font-mono text-muted break-all">{r.hexPreview}</td>
+                  <td className="py-2">
+                    {r.previewUrl ? (
+                      <img
+                        src={r.previewUrl}
+                        alt="preview"
+                        className="max-h-16 max-w-[6rem] object-contain rounded"
+                      />
+                    ) : (
+                      <span className="font-mono text-muted break-all text-xs">{r.hexPreview}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -130,7 +140,7 @@ function DataTable({
                 <th className="pb-2 pr-4 font-medium">URL</th>
                 <th className="pb-2 pr-4 font-medium">サイズ</th>
                 <th className="pb-2 pr-4 font-medium">Content-Type</th>
-                <th className="pb-2 font-medium">先頭32バイト（hex）</th>
+                <th className="pb-2 font-medium">先頭32バイト（hex）/ プレビュー</th>
               </tr>
             </thead>
             <tbody>
@@ -139,7 +149,17 @@ function DataTable({
                   <td className="py-2 pr-4 font-mono break-all max-w-[12rem]">{r.url}</td>
                   <td className="py-2 pr-4 whitespace-nowrap">{formatBytes(r.byteLength)}</td>
                   <td className="py-2 pr-4 text-muted">{r.contentType || "—"}</td>
-                  <td className="py-2 font-mono text-muted break-all">{r.hexPreview}</td>
+                  <td className="py-2">
+                    {r.previewUrl ? (
+                      <img
+                        src={r.previewUrl}
+                        alt="preview"
+                        className="max-h-16 max-w-[6rem] object-contain rounded"
+                      />
+                    ) : (
+                      <span className="font-mono text-muted break-all text-xs">{r.hexPreview}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -160,7 +180,7 @@ function DataTable({
               <th className="pb-2 pr-4 font-medium">ファイル名</th>
               <th className="pb-2 pr-4 font-medium">サイズ</th>
               <th className="pb-2 pr-4 font-medium">最終更新</th>
-              <th className="pb-2 font-medium">先頭32バイト（hex）</th>
+              <th className="pb-2 font-medium">先頭32バイト（hex）/ プレビュー</th>
             </tr>
           </thead>
           <tbody>
@@ -171,7 +191,17 @@ function DataTable({
                 <td className="py-2 pr-4 text-muted">
                   {new Date(f.lastModified).toLocaleString("ja-JP")}
                 </td>
-                <td className="py-2 font-mono text-muted break-all">{f.hexPreview}</td>
+                <td className="py-2">
+                  {f.previewUrl ? (
+                    <img
+                      src={f.previewUrl}
+                      alt="preview"
+                      className="max-h-16 max-w-[6rem] object-contain rounded"
+                    />
+                  ) : (
+                    <span className="font-mono text-muted break-all text-xs">{f.hexPreview}</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

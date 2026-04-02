@@ -12,6 +12,7 @@ import { ResultsDashboard } from "./components/results-dashboard";
 import { ResultsHistory } from "./components/results-history";
 import { PersistencePanel } from "./components/persistence-panel";
 import { DataInspectorPage } from "./pages/data-inspector";
+import { SimulationPage } from "./pages/simulation";
 
 function useHashRouter() {
   const [hash, setHash] = useState(window.location.hash);
@@ -106,5 +107,7 @@ function MainPage() {
 
 export function App() {
   const hash = useHashRouter();
-  return hash === "#/inspect" ? <DataInspectorPage /> : <MainPage />;
+  if (hash === "#/inspect") return <DataInspectorPage />;
+  if (hash === "#/simulation") return <SimulationPage />;
+  return <MainPage />;
 }

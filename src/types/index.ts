@@ -132,3 +132,23 @@ export interface WorkerErrorMessage {
 
 export type WorkerInMessage = WorkerStartMessage | WorkerCleanupMessage;
 export type WorkerOutMessage = WorkerProgressMessage | WorkerCompleteMessage | WorkerErrorMessage;
+
+export interface SimulationConfig {
+  imageCount: number;
+  imageSizeKB: number;
+}
+
+export interface SimulationProgress {
+  current: number;
+  total: number;
+  bytesWritten: number;
+}
+
+export interface SimulationResult {
+  config: SimulationConfig;
+  totalBytes: number;
+  successCount: number;
+  failedAtIndex: number | null;
+  durationMs: number;
+  throughputMBps: number;
+}

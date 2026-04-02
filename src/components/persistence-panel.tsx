@@ -146,6 +146,12 @@ export function PersistencePanel({
         >
           データ詳細を見る →
         </a>
+        <a
+          href="#/simulation"
+          className="rounded-sm border border-border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+        >
+          画像キャッシュシミュレーション →
+        </a>
       </div>
 
       {hasResults && (
