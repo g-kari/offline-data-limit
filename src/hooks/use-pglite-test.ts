@@ -74,13 +74,13 @@ export function usePgliteTest(): UseStorageTestReturn {
           },
         });
 
-        // 検証: レコードが読み返せるか確認
+        // 検証: レコードが1件以上存在するか確認（COUNT(*)は全スキャンになるためLIMIT 1で高速化）
         let verified = false;
         try {
-          const res = (await pg.exec("SELECT COUNT(*) AS cnt FROM data")) as unknown as {
-            rows: { cnt: number }[];
+          const res = (await pg.exec("SELECT 1 FROM data LIMIT 1")) as unknown as {
+            rows: unknown[];
           }[];
-          verified = res[0]?.rows?.[0]?.cnt > 0;
+          verified = (res[0]?.rows?.length ?? 0) > 0;
         } catch {
           verified = false;
         }

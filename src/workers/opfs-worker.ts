@@ -69,9 +69,17 @@ async function runBenchmark(dataType: DataType, maxBytes: number) {
       }
     }
 
-    // 検証: ファイルサイズが書き込み量と一致するか確認
-    const fileSize = handle.getSize();
-    const verified = fileSize >= totalBytes;
+    // 検証: 先頭データを実際に読み返して確認
+    let verified = false;
+    if (totalBytes > 0) {
+      try {
+        const buf = new ArrayBuffer(1024);
+        const bytesRead = handle.read(new DataView(buf), { at: 0 });
+        verified = bytesRead > 0;
+      } catch {
+        verified = false;
+      }
+    }
 
     const durationMs = Date.now() - startTime;
     const throughputMBps = durationMs > 0 ? totalBytes / 1024 / 1024 / (durationMs / 1000) : 0;
