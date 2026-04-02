@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import type { SimulationConfig, SimulationProgress, SimulationResult } from "../types";
 import { generateBmpChunk } from "../utils/chunk-generator";
 
-const SIMULATION_CACHE = "__simulation_cache";
+export const SIMULATION_CACHE = "__simulation_cache";
 
 export function useImageSimulation() {
   const [isRunning, setIsRunning] = useState(false);

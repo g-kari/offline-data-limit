@@ -1,50 +1,69 @@
 import { useState, useEffect, useRef } from "react";
-import type { SimulationConfig, SimulationResult } from "../types";
-import { useImageSimulation } from "../hooks/use-image-simulation";
+import type { SimulationConfig } from "../types";
+import { useImageSimulation, SIMULATION_CACHE } from "../hooks/use-image-simulation";
 import { formatBytes } from "../utils/format";
 
-const SIMULATION_CACHE = "__simulation_cache";
 const GALLERY_LIMIT = 20;
 
-function SimulationGallery({ result }: { result: SimulationResult }) {
+function SimulationGallery({
+  triggerReload,
+  knownTotal,
+}: {
+  triggerReload: number;
+  knownTotal?: number;
+}) {
   const [thumbs, setThumbs] = useState<string[]>([]);
-  const urlsRef = useRef<string[]>([]);
+  const currentUrlsRef = useRef<string[]>([]);
 
   useEffect(() => {
-    if (result.successCount === 0) return;
-    let cancelled = false;
+    let active = true;
+
     (async () => {
-      const cache = await caches.open(SIMULATION_CACHE);
-      const keys = (await cache.keys()).slice(0, GALLERY_LIMIT);
-      const urls: string[] = [];
-      for (const req of keys) {
-        const resp = await cache.match(req);
-        if (!resp) continue;
-        const blob = await resp.blob();
-        urls.push(URL.createObjectURL(blob));
+      if (!("caches" in globalThis)) return;
+      try {
+        const cache = await caches.open(SIMULATION_CACHE);
+        const keys = (await cache.keys()).slice(0, GALLERY_LIMIT);
+        if (!active) return;
+        const newUrls = (
+          await Promise.all(
+            keys.map(async (req) => {
+              const resp = await cache.match(req);
+              return resp ? URL.createObjectURL(await resp.blob()) : null;
+            }),
+          )
+        ).filter((u): u is string => u !== null);
+        if (!active) {
+          for (const u of newUrls) URL.revokeObjectURL(u);
+          return;
+        }
+        for (const u of currentUrlsRef.current) URL.revokeObjectURL(u);
+        currentUrlsRef.current = newUrls;
+        setThumbs(newUrls);
+      } catch {
+        // キャッシュなし or 非対応環境
       }
-      if (!cancelled) {
-        for (const u of urlsRef.current) URL.revokeObjectURL(u);
-        urlsRef.current = urls;
-        setThumbs(urls);
-      } else {
-        for (const u of urls) URL.revokeObjectURL(u);
-      }
-    })().catch(() => {});
+    })();
+
     return () => {
-      cancelled = true;
-      for (const u of urlsRef.current) URL.revokeObjectURL(u);
-      urlsRef.current = [];
+      active = false;
     };
-  }, [result]);
+  }, [triggerReload]);
+
+  useEffect(() => {
+    return () => {
+      for (const u of currentUrlsRef.current) URL.revokeObjectURL(u);
+    };
+  }, []);
 
   if (thumbs.length === 0) return null;
 
+  const totalCount = knownTotal ?? thumbs.length;
+
   return (
-    <div className="mt-3">
+    <div className="mt-4">
       <p className="text-xs text-muted mb-2">
-        先頭{thumbs.length}枚のプレビュー
-        {result.successCount > GALLERY_LIMIT && `（全${result.successCount}枚中）`}
+        キャッシュ済み画像（先頭{thumbs.length}枚）
+        {totalCount > GALLERY_LIMIT && `（全${totalCount}枚中）`}
       </p>
       <div className="flex flex-wrap gap-1">
         {thumbs.map((url, i) => (
@@ -74,6 +93,7 @@ const PRESETS: Preset[] = [
 export function SimulationPanel() {
   const [imageCount, setImageCount] = useState(500);
   const [imageSizeKB, setImageSizeKB] = useState(200);
+  const [galleryKey, setGalleryKey] = useState(0);
   const { isRunning, progress, result, run, cleanup } = useImageSimulation();
 
   const estimatedBytes = imageCount * imageSizeKB * 1024;
@@ -83,8 +103,14 @@ export function SimulationPanel() {
     setImageSizeKB(preset.config.imageSizeKB);
   };
 
-  const handleRun = () => {
-    run({ imageCount, imageSizeKB });
+  const handleRun = async () => {
+    await run({ imageCount, imageSizeKB });
+    setGalleryKey((k) => k + 1);
+  };
+
+  const handleCleanup = async () => {
+    await cleanup();
+    setGalleryKey((k) => k + 1);
   };
 
   return (
@@ -142,14 +168,24 @@ export function SimulationPanel() {
       </div>
 
       {/* 実行ボタン */}
-      <button
-        type="button"
-        onClick={handleRun}
-        disabled={isRunning}
-        className="rounded-sm bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {isRunning ? "実行中..." : "シミュレーション実行"}
-      </button>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={handleRun}
+          disabled={isRunning}
+          className="rounded-sm bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {isRunning ? "実行中..." : "シミュレーション実行"}
+        </button>
+        <button
+          type="button"
+          onClick={handleCleanup}
+          disabled={isRunning}
+          className="rounded-sm border border-border px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          キャッシュを削除
+        </button>
+      </div>
 
       {/* プログレスバー */}
       {progress && (
@@ -206,19 +242,10 @@ export function SimulationPanel() {
               <span className="font-medium">{result.throughputMBps.toFixed(1)} MB/s</span>
             </div>
           </div>
-
-          <SimulationGallery result={result} />
-
-          {/* クリーンアップボタン */}
-          <button
-            type="button"
-            onClick={cleanup}
-            className="mt-2 rounded-sm border border-border px-3 py-1.5 text-xs transition-opacity hover:opacity-80"
-          >
-            キャッシュを削除
-          </button>
         </div>
       )}
+
+      <SimulationGallery triggerReload={galleryKey} knownTotal={result?.successCount} />
     </div>
   );
 }
