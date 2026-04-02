@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { SimulationConfig } from "../types";
+import type { ImageFormat, SimulationConfig } from "../types";
 import { useImageSimulation, SIMULATION_CACHE } from "../hooks/use-image-simulation";
 import { formatBytes } from "../utils/format";
 
@@ -85,26 +85,55 @@ interface Preset {
 }
 
 const PRESETS: Preset[] = [
-  { label: "TCGカード（500枚×200KB）", config: { imageCount: 500, imageSizeKB: 200 } },
-  { label: "写真（100枚×2MB）", config: { imageCount: 100, imageSizeKB: 2048 } },
-  { label: "アイコン（1000枚×50KB）", config: { imageCount: 1000, imageSizeKB: 50 } },
+  {
+    label: "TCGカード（500枚 300×420 JPEG）",
+    config: { imageCount: 500, width: 300, height: 420, format: "jpg", quality: 85 },
+  },
+  {
+    label: "写真（100枚 1920×1080 JPEG）",
+    config: { imageCount: 100, width: 1920, height: 1080, format: "jpg", quality: 85 },
+  },
+  {
+    label: "アプリアイコン（1000枚 128×128 PNG）",
+    config: { imageCount: 1000, width: 128, height: 128, format: "png" },
+  },
+  {
+    label: "WebPサムネイル（200枚 400×300）",
+    config: { imageCount: 200, width: 400, height: 300, format: "webp" },
+  },
+];
+
+const FORMAT_OPTIONS: { value: ImageFormat; label: string }[] = [
+  { value: "png", label: "PNG" },
+  { value: "jpg", label: "JPEG" },
+  { value: "webp", label: "WebP" },
 ];
 
 export function SimulationPanel() {
   const [imageCount, setImageCount] = useState(500);
-  const [imageSizeKB, setImageSizeKB] = useState(200);
+  const [width, setWidth] = useState(300);
+  const [height, setHeight] = useState(420);
+  const [format, setFormat] = useState<ImageFormat>("jpg");
+  const [quality, setQuality] = useState(85);
   const [galleryKey, setGalleryKey] = useState(0);
-  const { isRunning, progress, result, run, cleanup } = useImageSimulation();
-
-  const estimatedBytes = imageCount * imageSizeKB * 1024;
+  const { isRunning, progress, result, error, run, cleanup } = useImageSimulation();
 
   const applyPreset = (preset: Preset) => {
     setImageCount(preset.config.imageCount);
-    setImageSizeKB(preset.config.imageSizeKB);
+    setWidth(preset.config.width);
+    setHeight(preset.config.height);
+    setFormat(preset.config.format);
+    setQuality(preset.config.quality ?? 85);
   };
 
   const handleRun = async () => {
-    await run({ imageCount, imageSizeKB });
+    await run({
+      imageCount,
+      width,
+      height,
+      format,
+      quality: format === "jpg" ? quality : undefined,
+    });
     setGalleryKey((k) => k + 1);
   };
 
@@ -149,23 +178,73 @@ export function SimulationPanel() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted">1枚のサイズ（KB）</span>
+            <span className="text-xs text-muted">幅（px）</span>
             <input
               type="number"
               min={1}
-              max={1048576}
-              value={imageSizeKB}
-              onChange={(e) => setImageSizeKB(Math.max(1, Number(e.target.value)))}
+              max={4096}
+              value={width}
+              onChange={(e) => setWidth(Math.max(1, Number(e.target.value)))}
               disabled={isRunning}
-              className="w-28 rounded-sm border border-border bg-transparent px-2 py-1.5 text-sm disabled:opacity-40"
+              className="w-24 rounded-sm border border-border bg-transparent px-2 py-1.5 text-sm disabled:opacity-40"
             />
           </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted">高さ（px）</span>
+            <input
+              type="number"
+              min={1}
+              max={4096}
+              value={height}
+              onChange={(e) => setHeight(Math.max(1, Number(e.target.value)))}
+              disabled={isRunning}
+              className="w-24 rounded-sm border border-border bg-transparent px-2 py-1.5 text-sm disabled:opacity-40"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted">フォーマット</span>
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value as ImageFormat)}
+              disabled={isRunning}
+              className="rounded-sm border border-border bg-transparent px-2 py-1.5 text-sm disabled:opacity-40"
+            >
+              {FORMAT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {format === "jpg" && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted">品質</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={quality}
+                onChange={(e) => setQuality(Math.min(100, Math.max(1, Number(e.target.value))))}
+                disabled={isRunning}
+                className="w-20 rounded-sm border border-border bg-transparent px-2 py-1.5 text-sm disabled:opacity-40"
+              />
+            </label>
+          )}
           <p className="text-sm text-muted">
-            合計見積もり:{" "}
-            <span className="font-medium text-current">{formatBytes(estimatedBytes)}</span>
+            1枚:{" "}
+            <span className="font-medium text-current">
+              {width}×{height} {format.toUpperCase()}
+            </span>
           </p>
         </div>
       </div>
+
+      {/* エラー表示 */}
+      {error && (
+        <div className="rounded bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
 
       {/* 実行ボタン */}
       <div className="flex gap-3">
@@ -228,6 +307,10 @@ export function SimulationPanel() {
             <div>
               <span className="text-muted">合計サイズ:</span>{" "}
               <span className="font-medium">{formatBytes(result.totalBytes)}</span>
+            </div>
+            <div>
+              <span className="text-muted">平均画像サイズ:</span>{" "}
+              <span className="font-medium">{formatBytes(result.averageImageBytes)}</span>
             </div>
             <div>
               <span className="text-muted">所要時間:</span>{" "}

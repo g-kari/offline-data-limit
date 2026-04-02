@@ -133,9 +133,14 @@ export interface WorkerErrorMessage {
 export type WorkerInMessage = WorkerStartMessage | WorkerCleanupMessage;
 export type WorkerOutMessage = WorkerProgressMessage | WorkerCompleteMessage | WorkerErrorMessage;
 
+export type ImageFormat = "png" | "jpg" | "webp";
+
 export interface SimulationConfig {
   imageCount: number;
-  imageSizeKB: number;
+  width: number;
+  height: number;
+  format: ImageFormat;
+  quality?: number; // JPEG品質（1-100、JPEGのみ有効）
 }
 
 export interface SimulationProgress {
@@ -151,4 +156,5 @@ export interface SimulationResult {
   failedAtIndex: number | null;
   durationMs: number;
   throughputMBps: number;
+  averageImageBytes: number;
 }
