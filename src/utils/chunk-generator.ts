@@ -21,12 +21,13 @@ export function generateChunk(sizeBytes: number): Uint8Array {
  */
 export function generateStringChunk(sizeBytes: number): string {
   const bytes = generateChunk(Math.ceil(sizeBytes * 0.75));
-  // スプレッド展開はスタックサイズ制限に引っかかるためループで変換する
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  // 8192バイトずつ変換して文字列連結のO(n²)を回避し、スタックオーバーフローも防ぐ
+  const CONVERT_CHUNK = 8192;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CONVERT_CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CONVERT_CHUNK)));
   }
-  return btoa(binary).substring(0, sizeBytes);
+  return btoa(parts.join("")).substring(0, sizeBytes);
 }
 
 /**
