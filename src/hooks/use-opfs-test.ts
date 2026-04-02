@@ -5,16 +5,9 @@ import type {
   WorkerInMessage,
   WorkerOutMessage,
   DataType,
+  UseStorageTestReturn,
 } from "../types";
 import { getSafeMaxBytes } from "../utils/storage-cap";
-
-interface UseStorageTestReturn {
-  result: TestResult | null;
-  progress: TestProgress | null;
-  isRunning: boolean;
-  run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
-  cleanup: () => Promise<void>;
-}
 
 /** OPFS の容量上限を計測する hook（Web Worker経由） */
 export function useOpfsTest(): UseStorageTestReturn {

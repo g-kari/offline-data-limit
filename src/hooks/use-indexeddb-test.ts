@@ -1,19 +1,11 @@
 import { useState, useCallback } from "react";
-import type { TestResult, TestProgress, DataType } from "../types";
+import type { TestResult, TestProgress, DataType, UseStorageTestReturn } from "../types";
 import { measureStorageLimit } from "../utils/binary-search";
 import { generateChunkByType } from "../utils/chunk-generator";
 import { getSafeMaxBytes } from "../utils/storage-cap";
 
 const DB_NAME = "__benchmark_idb";
 const STORE_NAME = "data";
-
-interface UseStorageTestReturn {
-  result: TestResult | null;
-  progress: TestProgress | null;
-  isRunning: boolean;
-  run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
-  cleanup: () => Promise<void>;
-}
 
 /** IndexedDB を開く */
 function openBenchmarkDB(): Promise<IDBDatabase> {

@@ -1,29 +1,12 @@
 import { useState, useCallback } from "react";
-import type { TestResult, TestProgress, DataType } from "../types";
+import type { TestResult, TestProgress, DataType, UseStorageTestReturn } from "../types";
 import { generateStringChunkByType } from "../utils/chunk-generator";
+import { isQuotaError } from "../utils/binary-search";
 
 const KEY_PREFIX = "__bench_ss_";
 // sessionStorage は通常 5MB 上限のため、512KB スタートで十分収束する
 const START_CHUNK_BYTES = 512 * 1024; // 512KB
 const MIN_CHUNK_BYTES = 1024; // 1KB
-
-interface UseStorageTestReturn {
-  result: TestResult | null;
-  progress: TestProgress | null;
-  isRunning: boolean;
-  run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
-  cleanup: () => Promise<void>;
-}
-
-function isQuotaError(err: unknown): boolean {
-  if (err instanceof DOMException) {
-    return err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED";
-  }
-  if (err instanceof Error) {
-    return err.name === "QuotaExceededError" || err.message.toLowerCase().includes("quota");
-  }
-  return false;
-}
 
 /** sessionStorage の容量上限を計測する hook */
 export function useSessionStorageTest(): UseStorageTestReturn {
