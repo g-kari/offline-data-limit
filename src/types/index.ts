@@ -55,6 +55,14 @@ export interface TestResult {
   verified?: boolean;
 }
 
+export interface UseStorageTestReturn {
+  result: TestResult | null;
+  progress: TestProgress | null;
+  isRunning: boolean;
+  run: (dataType?: DataType, skipCleanup?: boolean) => Promise<void>;
+  cleanup: () => Promise<void>;
+}
+
 export interface StorageEstimate {
   quota: number;
   usage: number;

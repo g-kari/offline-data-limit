@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import { generateChunkByType } from "../utils/chunk-generator";
+import { isQuotaError } from "../utils/binary-search";
 import type {
   DataType,
   WorkerInMessage,
@@ -13,23 +14,6 @@ const DB_NAME = "__benchmark_sqlite.db";
 const START_CHUNK_BYTES = 64 * 1024 * 1024; // 64MB
 const MIN_CHUNK_BYTES = 1024; // 1KB
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
-
-/**
- * QuotaExceededError かどうかを判定する
- */
-function isQuotaError(err: unknown): boolean {
-  if (err instanceof DOMException) {
-    return err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED";
-  }
-  if (err instanceof Error) {
-    return (
-      err.name === "QuotaExceededError" ||
-      err.message.toLowerCase().includes("quota") ||
-      err.message.toLowerCase().includes("database or disk is full")
-    );
-  }
-  return false;
-}
 
 // wa-sqlite の型定義（最小限）
 type SQLiteDB = number;

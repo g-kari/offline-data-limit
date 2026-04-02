@@ -61,12 +61,17 @@ export async function measureStorageLimit(
   return { actualLimitBytes: totalBytes, throughputMBps, durationMs };
 }
 
-function isQuotaError(err: unknown): boolean {
+export function isQuotaError(err: unknown): boolean {
   if (err instanceof DOMException) {
     return err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED";
   }
   if (err instanceof Error) {
-    return err.name === "QuotaExceededError" || err.message.toLowerCase().includes("quota");
+    const msg = err.message.toLowerCase();
+    return (
+      err.name === "QuotaExceededError" ||
+      msg.includes("quota") ||
+      msg.includes("database or disk is full")
+    );
   }
   return false;
 }
