@@ -33,7 +33,6 @@ export function GlossaryPage({ initialTermId }: Props) {
   useEffect(() => {
     if (!initialTermId || scrolledRef.current) return;
     scrolledRef.current = true;
-    // 少し待ってからスクロール（レンダリング完了後）
     const id = setTimeout(() => {
       document
         .getElementById(`glossary-${initialTermId}`)
@@ -54,6 +53,15 @@ export function GlossaryPage({ initialTermId }: Props) {
         </a>
       </header>
 
+      {/* 要出典の説明 */}
+      <div className="mb-5 flex items-start gap-2 rounded border border-border bg-surface px-3 py-2.5 text-xs text-muted">
+        <CitationBadge />
+        <span>
+          このマークは、記述の根拠となる一次情報源が不明確な箇所を示しています。ブラウザや
+          OSのバージョンによって異なる可能性があります。
+        </span>
+      </div>
+
       {/* 検索 */}
       <div className="mb-6">
         <input
@@ -69,14 +77,12 @@ export function GlossaryPage({ initialTermId }: Props) {
       {filtered.length === 0 ? (
         <p className="text-muted text-sm">「{query}」に一致する用語はありませんでした。</p>
       ) : query.trim() ? (
-        /* 検索中はカテゴリ分けなしでフラット表示 */
         <div className="space-y-4">
           {filtered.map((entry) => (
             <EntryCard key={entry.id} entry={entry} highlight={query.trim()} />
           ))}
         </div>
       ) : (
-        /* 通常表示: カテゴリ別 */
         <div className="space-y-10">
           {CATEGORIES.map((cat) => {
             const entries = filtered.filter((e) => e.category === cat);
@@ -120,12 +126,55 @@ function EntryCard({ entry, highlight }: EntryCardProps) {
         {highlight ? <Highlighted text={entry.brief} query={highlight} /> : entry.brief}
       </p>
       <p className="text-sm text-muted leading-relaxed">
-        {highlight ? <Highlighted text={entry.description} query={highlight} /> : entry.description}
+        <DescriptionWithCitations text={entry.description} highlight={highlight} />
       </p>
       {entry.aliases.length > 1 && (
         <p className="text-xs text-muted mt-2">別名: {entry.aliases.slice(1).join(" / ")}</p>
       )}
+      {entry.references && entry.references.length > 0 && (
+        <div className="mt-3 border-t border-border/50 pt-2.5">
+          <p className="text-xs font-medium mb-1.5">参考</p>
+          <ul className="space-y-1">
+            {entry.references.map((ref) => (
+              <li key={ref.url}>
+                <a
+                  href={ref.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-accent hover:underline inline-flex items-center gap-1"
+                >
+                  {ref.label}
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
+  );
+}
+
+function CitationBadge() {
+  return (
+    <sup className="inline-flex shrink-0 items-center rounded bg-amber-500/20 px-1 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 leading-none">
+      要出典
+    </sup>
+  );
+}
+
+/** description 内の [要出典] をバッジに変換してレンダリングする */
+function DescriptionWithCitations({ text, highlight }: { text: string; highlight?: string }) {
+  const parts = text.split("[要出典]");
+  return (
+    <>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {highlight ? <Highlighted text={part} query={highlight} /> : part}
+          {i < parts.length - 1 && <CitationBadge />}
+        </span>
+      ))}
+    </>
   );
 }
 
