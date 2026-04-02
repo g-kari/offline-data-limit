@@ -14,15 +14,6 @@ interface UseStorageTestReturn {
   cleanup: () => Promise<void>;
 }
 
-/** Uint8Array を16進文字列に変換 */
-function toHex(bytes: Uint8Array): string {
-  let hex = "";
-  for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, "0");
-  }
-  return hex;
-}
-
 /** PGLite の容量上限を計測する hook */
 export function usePgliteTest(): UseStorageTestReturn {
   const [result, setResult] = useState<TestResult | null>(null);
@@ -68,8 +59,8 @@ export function usePgliteTest(): UseStorageTestReturn {
           maxBytes,
           onWrite: async (chunkSize, _keyIndex) => {
             const chunk = generateChunkByType(chunkSize, dataType);
-            const hexStr = "\\x" + toHex(chunk);
-            await pg.exec(`INSERT INTO data (chunk) VALUES ('${hexStr}')`);
+            // hex文字列変換を避けパラメータクエリで直接バイナリを渡す
+            await pg.query("INSERT INTO data (chunk) VALUES ($1)", [chunk]);
           },
           onProgress: (bytesWritten, currentChunkSize, startTime) => {
             const elapsed = (Date.now() - startTime) / 1000;
