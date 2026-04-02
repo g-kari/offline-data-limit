@@ -159,7 +159,7 @@ async function inspectIndexedDB(
           if (val) {
             const mime = detectImageMime(val);
             if (mime) {
-              previewUrl = URL.createObjectURL(new Blob([val], { type: mime }));
+              previewUrl = URL.createObjectURL(new Blob([val.slice(0)], { type: mime }));
             }
           }
           records.push({
