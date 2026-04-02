@@ -1,7 +1,64 @@
-import { useState } from "react";
-import type { SimulationConfig } from "../types";
+import { useState, useEffect, useRef } from "react";
+import type { SimulationConfig, SimulationResult } from "../types";
 import { useImageSimulation } from "../hooks/use-image-simulation";
 import { formatBytes } from "../utils/format";
+
+const SIMULATION_CACHE = "__simulation_cache";
+const GALLERY_LIMIT = 20;
+
+function SimulationGallery({ result }: { result: SimulationResult }) {
+  const [thumbs, setThumbs] = useState<string[]>([]);
+  const urlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (result.successCount === 0) return;
+    let cancelled = false;
+    (async () => {
+      const cache = await caches.open(SIMULATION_CACHE);
+      const keys = (await cache.keys()).slice(0, GALLERY_LIMIT);
+      const urls: string[] = [];
+      for (const req of keys) {
+        const resp = await cache.match(req);
+        if (!resp) continue;
+        const blob = await resp.blob();
+        urls.push(URL.createObjectURL(blob));
+      }
+      if (!cancelled) {
+        for (const u of urlsRef.current) URL.revokeObjectURL(u);
+        urlsRef.current = urls;
+        setThumbs(urls);
+      } else {
+        for (const u of urls) URL.revokeObjectURL(u);
+      }
+    })().catch(() => {});
+    return () => {
+      cancelled = true;
+      for (const u of urlsRef.current) URL.revokeObjectURL(u);
+      urlsRef.current = [];
+    };
+  }, [result]);
+
+  if (thumbs.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <p className="text-xs text-muted mb-2">
+        先頭{thumbs.length}枚のプレビュー
+        {result.successCount > GALLERY_LIMIT && `（全${result.successCount}枚中）`}
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {thumbs.map((url, i) => (
+          <img
+            key={url}
+            src={url}
+            alt={`card_${i}`}
+            className="w-16 h-16 object-contain rounded border border-border/40 bg-surface"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface Preset {
   label: string;
@@ -149,6 +206,8 @@ export function SimulationPanel() {
               <span className="font-medium">{result.throughputMBps.toFixed(1)} MB/s</span>
             </div>
           </div>
+
+          <SimulationGallery result={result} />
 
           {/* クリーンアップボタン */}
           <button
