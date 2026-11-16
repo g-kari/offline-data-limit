@@ -16,7 +16,7 @@
     "check": "vp check"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.15",
+    "@electric-sql/pglite": "^0.5.16",
     "@journeyapps/wa-sqlite": "^2.0.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.4"
